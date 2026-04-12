@@ -44,11 +44,9 @@ There is **no server** and **no build step** — just this repo’s HTML file.
 
 ## Repository
 
-Replace this with your real GitHub URL once the repo is public:
+Source and issues: **[github.com/bertdida/think2](https://github.com/bertdida/think2)**  
 
-**[Your GitHub repository →](https://github.com/YOUR_USER_OR_ORG/think2)**  
-
-The live site can also show the same link in the **header** for visitors who want source or issues.
+The same link appears in the **site header** on [think2.xyz](https://think2.xyz).
 
 ---
 
