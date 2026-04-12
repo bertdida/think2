@@ -8,7 +8,8 @@
       content="think2 runs an eight-round strategy debate between two AI models on your brief (three strategist defense passes), then synthesizes a verdict and action list. Bring your OpenRouter API key — it stays in your browser."
     />
     <meta name="robots" content="index,follow" />
-    <meta name="theme-color" content="#f4f3f0" />
+    <meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)" />
     <link rel="canonical" href="https://think2.xyz/" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://think2.xyz/" />
@@ -58,10 +59,63 @@
         --content-pad-x: 24px;
         --link: #1548a8;
         --timeline-axis: 13px;
+        --focus-border: #b8b3a8;
+        --focus-shadow: 0 0 0 2px rgba(23, 23, 23, 0.06);
+        --focus-shadow-strong: 0 0 0 2px rgba(23, 23, 23, 0.08);
+        --btn-start-hover-bg: #2a2a2a;
+        --btn-start-hover-border: #2a2a2a;
+        --outline-hover-border: #c4beb2;
+        --api-key-hover-bg: rgba(23, 23, 23, 0.06);
+        --api-key-focus-ring: 0 0 0 2px rgba(23, 23, 23, 0.12);
+        --model-tag-s-bg: rgba(29, 78, 216, 0.08);
+        --model-tag-c-bg: rgba(185, 28, 28, 0.08);
+        --model-tag-y-bg: rgba(161, 98, 7, 0.1);
+        --synthesis-card-bg: #faf8f4;
+        --round-badge-bg: rgba(255, 255, 255, 0.6);
+        --card-body-color: #2f2f2f;
+        --synthesis-body-color: #3a3428;
+        --error-bg: #fdf2f2;
+        --error-border: #e8c4c4;
+        --error-text: #991b1b;
+        --error-inline: #b91c1c;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #141414;
+          --surface: #1c1c1c;
+          --border: #333333;
+          --text: #ececec;
+          --muted: #9ca3af;
+          --card-bg: #1c1c1c;
+          --link: #93c5fd;
+          --strategist: #60a5fa;
+          --critic: #f87171;
+          --synthesis: #fbbf24;
+          --focus-border: #6b7280;
+          --focus-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+          --focus-shadow-strong: 0 0 0 2px rgba(255, 255, 255, 0.1);
+          --btn-start-hover-bg: #d4d4d4;
+          --btn-start-hover-border: #d4d4d4;
+          --outline-hover-border: #525252;
+          --api-key-hover-bg: rgba(255, 255, 255, 0.08);
+          --api-key-focus-ring: 0 0 0 2px rgba(255, 255, 255, 0.16);
+          --model-tag-s-bg: rgba(96, 165, 250, 0.15);
+          --model-tag-c-bg: rgba(248, 113, 113, 0.14);
+          --model-tag-y-bg: rgba(251, 191, 36, 0.14);
+          --synthesis-card-bg: #1f1d16;
+          --round-badge-bg: rgba(255, 255, 255, 0.06);
+          --card-body-color: #d4d4d4;
+          --synthesis-body-color: #e7e5df;
+          --error-bg: #2a1518;
+          --error-border: #7f1d1d;
+          --error-text: #fca5a5;
+          --error-inline: #f87171;
+        }
       }
 
       html {
-        color-scheme: light;
+        color-scheme: light dark;
       }
 
       * {
@@ -163,8 +217,8 @@
       .field input:focus,
       .field textarea:focus,
       .field select:focus {
-        border-color: #b8b3a8;
-        box-shadow: 0 0 0 2px rgba(23, 23, 23, 0.06);
+        border-color: var(--focus-border);
+        box-shadow: var(--focus-shadow);
       }
 
       .field input[type="password"] {
@@ -197,15 +251,15 @@
       }
 
       .model-tag.s {
-        background: rgba(29, 78, 216, 0.08);
+        background: var(--model-tag-s-bg);
         color: var(--strategist);
       }
       .model-tag.c {
-        background: rgba(185, 28, 28, 0.08);
+        background: var(--model-tag-c-bg);
         color: var(--critic);
       }
       .model-tag.y {
-        background: rgba(161, 98, 7, 0.1);
+        background: var(--model-tag-y-bg);
         color: var(--synthesis);
       }
 
@@ -229,8 +283,8 @@
       }
 
       .btn-start:hover {
-        background: #2a2a2a;
-        border-color: #2a2a2a;
+        background: var(--btn-start-hover-bg);
+        border-color: var(--btn-start-hover-border);
         color: var(--bg);
       }
       .btn-start:active {
@@ -239,6 +293,93 @@
       .btn-start:disabled {
         opacity: 0.35;
         cursor: not-allowed;
+      }
+
+      .brief-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 8px;
+      }
+
+      .brief-action {
+        font-family: inherit;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--text);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 2px;
+        padding: 6px 12px;
+        cursor: pointer;
+        transition:
+          background 0.15s ease,
+          border-color 0.15s ease;
+      }
+
+      .brief-action:hover {
+        background: var(--bg);
+        border-color: var(--outline-hover-border);
+      }
+
+      .brief-action:focus {
+        outline: none;
+      }
+
+      .brief-action:focus-visible {
+        border-color: var(--focus-border);
+        box-shadow: var(--focus-shadow-strong);
+      }
+
+      .api-key-wrap {
+        position: relative;
+        width: 100%;
+      }
+
+      .api-key-wrap input {
+        width: 100%;
+        box-sizing: border-box;
+        padding-right: 2.75rem;
+      }
+
+      .api-key-toggle {
+        position: absolute;
+        z-index: 1;
+        right: 4px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 2.125rem;
+        height: 2.125rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: none;
+        border-radius: 2px;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        transition:
+          background 0.15s ease,
+          color 0.15s ease;
+      }
+
+      .api-key-toggle:hover {
+        background: var(--api-key-hover-bg);
+        color: var(--text);
+      }
+
+      .api-key-toggle:focus {
+        outline: none;
+      }
+
+      .api-key-toggle:focus-visible {
+        box-shadow: var(--api-key-focus-ring);
+      }
+
+      .api-key-toggle svg {
+        display: block;
+        flex-shrink: 0;
       }
 
       .timeline {
@@ -326,7 +467,7 @@
       }
       .round-card.synthesis .card-inner {
         border-left: 3px solid var(--synthesis);
-        background: #faf8f4;
+        background: var(--synthesis-card-bg);
       }
 
       .card-header {
@@ -360,7 +501,7 @@
         padding: 2px 6px;
         border: 1px solid var(--border);
         border-radius: 2px;
-        background: rgba(255, 255, 255, 0.6);
+        background: var(--round-badge-bg);
       }
 
       .typing-indicator {
@@ -401,7 +542,7 @@
       .card-content {
         font-size: 0.875rem;
         line-height: 1.7;
-        color: #2f2f2f;
+        color: var(--card-body-color);
         white-space: pre-wrap;
         word-break: break-word;
       }
@@ -411,7 +552,11 @@
       }
 
       .round-card.synthesis .card-content {
-        color: #3a3428;
+        color: var(--synthesis-body-color);
+      }
+
+      .stream-error {
+        color: var(--error-inline);
       }
 
       .cursor {
@@ -453,16 +598,16 @@
 
       .btn-reset:hover {
         background: var(--bg);
-        border-color: #c4beb2;
+        border-color: var(--outline-hover-border);
       }
 
       .error-msg {
-        background: #fdf2f2;
-        border: 1px solid #e8c4c4;
+        background: var(--error-bg);
+        border: 1px solid var(--error-border);
         border-radius: 2px;
         padding: 12px 14px;
         font-size: 0.8125rem;
-        color: #991b1b;
+        color: var(--error-text);
         margin-top: 16px;
         display: none;
       }
@@ -531,13 +676,24 @@
         <form id="councilForm" onsubmit="return false">
           <div class="field">
             <label for="apiKey">OpenRouter API key</label>
-            <input
-              type="password"
-              id="apiKey"
-              name="apiKey"
-              placeholder="sk-or-..."
-              autocomplete="off"
-            />
+            <div class="api-key-wrap">
+              <input
+                type="password"
+                id="apiKey"
+                name="apiKey"
+                placeholder="sk-or-..."
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button
+                type="button"
+                class="api-key-toggle"
+                id="btnApiKeyToggle"
+                aria-pressed="false"
+                aria-label="Show API key as plain text"
+                title="Show key"
+              ></button>
+            </div>
             <p class="key-warning">
               Used only in this tab for OpenRouter. Not saved — gone after reload.
             </p>
@@ -567,8 +723,16 @@
             <textarea
               id="brief"
               name="brief"
-              placeholder="e.g. I run a TikTok quiz channel with 10 days of posts. Views are low (avg 100–300), retention is 13%, videos are 70 seconds long. I'm posting 10 questions per video. What should my strategy be to grow faster?"
+              placeholder="What is going on, what have you tried, and what do you want decided?"
             ></textarea>
+            <div class="brief-actions">
+              <button type="button" class="brief-action" id="btnBriefClear">
+                Clear
+              </button>
+              <button type="button" class="brief-action" id="btnBriefRandom">
+                Random brief
+              </button>
+            </div>
           </div>
 
           <button class="btn-start" id="btnStart" type="button">
@@ -603,6 +767,21 @@
       const STORAGE_CRITIC = "think2.criticModel";
       const STORAGE_SYNTHESIZER = "think2.synthesizerModel";
       const SESSION_MODEL_IDS = "think2.openrouterModelIds.v1";
+
+      const SCROLL_BOTTOM_TOLERANCE_PX = 64;
+
+      const SAMPLE_BRIEFS = [
+        "I want to be more consistent at the gym (3×/week) but I break the streak whenever work gets busy. I've tried apps and strict plans; they don't stick. What strategy actually works for someone who's motivated but chaotic?",
+        "I have a side project that's been 'almost ready' for months: it works for me, but I have no users. I work full-time and can spend maybe 6 hours a week on it. I keep tweaking code instead of talking to people. What should my next 30 days look like if I want real feedback, not more polishing?",
+        "I'm a mid-level developer and my job is fine, but I feel stuck on growth. Updating my resume feels overwhelming and I avoid networking. I can interview when I get a chance, but I don't know how to pick the next role without jumping randomly. How should I spend the next 6 weeks?",
+        "I'm saving for a used car in about a year, but I also want a modest vacation this summer. I have a small amount of debt I'm paying down. Income is steady but tight. How do I balance vacation, the car fund, and debt without feeling like I'm failing at all three?",
+        "I paid for an online course six months ago and I've barely started. Evenings I'm tired and default to scrolling. I still want to finish it without burning out at my day job. What's a realistic weekly structure for the next month?",
+        "I'm building a small tool for a niche audience. Friends say 'add this feature' and the scope keeps growing. I'm afraid if I cut features nobody will care, but if I keep expanding I'll never ship. How do I decide what belongs in v1?",
+        "A coworker often interrupts me in meetings and takes credit for ideas I shared privately. I don't want to be labeled difficult, but it's affecting my morale. What is a practical way to handle the next few weeks?",
+        "I work from home with kids in the house after school. I need focused blocks for deep work but I feel guilty saying no to family. What boundaries or routines actually work for people in a similar setup?",
+        "I was promoted to lead a tiny team and I second-guess every decision. I want to support people without micromanaging, but I'm anxious about being judged if projects slip. What should I focus on in my first 90 days?",
+        "I run a tiny newsletter with slow growth. I enjoy writing but promotion feels cringe. I post inconsistently on social. What is a simple growth strategy that doesn't make me hate my weekends?",
+      ];
 
       const MODEL_ID_RE = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i;
 
@@ -902,6 +1081,31 @@
         }
       }
 
+      /**
+       * @param {Element | null} root
+       */
+      function isDocumentPinnedToBottom(root) {
+        if (!root) return true;
+        const gap =
+          root.scrollHeight - root.scrollTop - root.clientHeight;
+        return gap <= SCROLL_BOTTOM_TOLERANCE_PX;
+      }
+
+      function pickRandomBrief() {
+        const ta = document.getElementById("brief");
+        const current = ta ? ta.value : "";
+        if (SAMPLE_BRIEFS.length === 0) return "";
+        let next = SAMPLE_BRIEFS[0];
+        for (let i = 0; i < 8; i++) {
+          next =
+            SAMPLE_BRIEFS[
+              Math.floor(Math.random() * SAMPLE_BRIEFS.length)
+            ];
+          if (next !== current || SAMPLE_BRIEFS.length === 1) break;
+        }
+        return next;
+      }
+
       function createStreamRenderer(contentEl) {
         const textSpan = document.createElement("span");
         textSpan.className = "stream-text";
@@ -921,7 +1125,9 @@
         const flushScroll = () => {
           scrollRaf = 0;
           const root = document.scrollingElement;
-          if (root) root.scrollTop = root.scrollHeight;
+          if (root && isDocumentPinnedToBottom(root)) {
+            root.scrollTop = root.scrollHeight;
+          }
         };
 
         return {
@@ -975,7 +1181,9 @@
         document.getElementById("timeline").appendChild(card);
 
         requestAnimationFrame(() => card.classList.add("animated"));
-        card.scrollIntoView({ behavior: "smooth", block: "end" });
+        if (isDocumentPinnedToBottom(document.scrollingElement)) {
+          card.scrollIntoView({ behavior: "smooth", block: "end" });
+        }
 
         const contentEl = document.getElementById(`content-${round.id}`);
         const typingEl = document.getElementById(`typing-${round.id}`);
@@ -1056,7 +1264,7 @@
             streamRef.cancel();
             streamRef = null;
           }
-          contentEl.innerHTML = `<span style="color:#ef4444">Error: ${escapeHtml(message)}</span>`;
+          contentEl.innerHTML = `<span class="stream-error">Error: ${escapeHtml(message)}</span>`;
           history[round.id] = "[error]";
           showError(`Round failed: ${message}`);
           return false;
@@ -1116,6 +1324,9 @@
         document.getElementById("btnReset").style.display = "none";
         document.getElementById("btnStart").disabled = false;
         document.getElementById("brief").value = "";
+        const apiKeyEl = document.getElementById("apiKey");
+        apiKeyEl.type = "password";
+        syncApiKeyToggleUi();
         history = {};
         hideError();
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1123,6 +1334,42 @@
 
       document.getElementById("btnStart").addEventListener("click", startCouncil);
       document.getElementById("btnReset").addEventListener("click", resetSession);
+
+      document.getElementById("btnBriefClear").addEventListener("click", () => {
+        document.getElementById("brief").value = "";
+      });
+      document.getElementById("btnBriefRandom").addEventListener("click", () => {
+        const briefEl = document.getElementById("brief");
+        briefEl.value = pickRandomBrief();
+        briefEl.focus();
+        briefEl.setSelectionRange(briefEl.value.length, briefEl.value.length);
+      });
+
+      const API_KEY_TOGGLE_SVG = {
+        eye: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`,
+        eyeOff: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>`,
+      };
+
+      function syncApiKeyToggleUi() {
+        const input = document.getElementById("apiKey");
+        const btn = document.getElementById("btnApiKeyToggle");
+        const masked = input.type === "password";
+        btn.innerHTML = masked ? API_KEY_TOGGLE_SVG.eye : API_KEY_TOGGLE_SVG.eyeOff;
+        btn.setAttribute("aria-pressed", masked ? "false" : "true");
+        btn.setAttribute(
+          "aria-label",
+          masked ? "Show API key as plain text" : "Mask API key",
+        );
+        btn.title = masked ? "Show key" : "Mask key";
+      }
+
+      document.getElementById("btnApiKeyToggle").addEventListener("click", () => {
+        const input = document.getElementById("apiKey");
+        input.type = input.type === "password" ? "text" : "password";
+        syncApiKeyToggleUi();
+      });
+
+      syncApiKeyToggleUi();
 
       fillSelect("strategistModel", STORAGE_STRATEGIST, "anthropic/claude-sonnet-4.6");
       fillSelect("criticModel", STORAGE_CRITIC, "google/gemini-2.5-pro");
