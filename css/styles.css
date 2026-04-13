@@ -617,9 +617,19 @@ body {
   }
 }
 
-.btn-reset {
-  display: none;
+.session-done-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   margin: 32px auto 0;
+  max-width: var(--content-max);
+  padding: 0 var(--content-pad-x);
+}
+
+.btn-reset,
+.btn-share {
   padding: 10px 20px;
   background: var(--surface);
   color: var(--text);
@@ -634,9 +644,54 @@ body {
     border-color 0.15s ease;
 }
 
-.btn-reset:hover {
+.btn-reset:hover,
+.btn-share:hover {
   background: var(--bg);
   border-color: var(--outline-hover-border);
+}
+
+.btn-share:focus,
+.btn-reset:focus {
+  outline: none;
+}
+
+.btn-share:focus-visible,
+.btn-reset:focus-visible {
+  border-color: var(--focus-border);
+  box-shadow: var(--focus-shadow-strong);
+}
+
+.share-link-hint {
+  max-width: var(--content-max);
+  margin: 12px auto 0;
+  padding: 0 var(--content-pad-x);
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.45;
+}
+
+.share-view-banner {
+  max-width: var(--content-max);
+  margin: 0 auto 20px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.share-load-error {
+  max-width: var(--content-max);
+  margin: 0 auto 16px;
+  padding: 12px 14px;
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  border-radius: 2px;
+  font-size: 0.8125rem;
+  color: var(--error-text);
 }
 
 .error-msg {

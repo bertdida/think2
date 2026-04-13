@@ -1,34 +1,33 @@
 import { appendRoundCard, createStreamRenderer } from "./shared.js";
+import type { ModelKey } from "./debate-rounds.js";
+import { fillSelectDisabled } from "./model-selects.js";
+import type { ParsedUsage } from "./openrouter-usage.js";
+import { loadSharePayloadFromLocation } from "./share-bootstrap.js";
+import {
+  buildSharePayloadV1,
+  encodeShareHash,
+  shareUrlWithHash,
+  type SharePayloadV1,
+  type ShareUsageStepV1,
+} from "./share-payload.js";
+import {
+  hideSessionDoneChrome,
+  showSessionDoneChrome,
+  showShareDecodeError,
+  wireShareViewer,
+} from "./share-view.js";
+import {
+  addUsageToSessionAgg,
+  clearSessionUsageSummary,
+  createEmptySessionUsageAgg,
+  mountRoundUsageFooter,
+  renderSessionUsageSummary,
+} from "./usage-display.js";
 
 const DEMO_BRIEF =
   "I want to be more consistent at the gym (3×/week) but I break the streak whenever work gets busy. I've tried apps and strict plans; they don't stick. What strategy actually works for someone who's motivated but chaotic?";
 
 const DEMO_API_KEY = "sk-or-v1-demo";
-
-const MODEL_PRESETS: ReadonlyArray<{ value: string; label: string }> = [
-  {
-    value: "anthropic/claude-sonnet-4.6",
-    label: "Claude Sonnet 4.6",
-  },
-  {
-    value: "anthropic/claude-sonnet-4.5",
-    label: "Claude Sonnet 4.5",
-  },
-  {
-    value: "anthropic/claude-opus-4.5",
-    label: "Claude Opus 4.5",
-  },
-  { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-  { value: "openai/gpt-5", label: "GPT-5" },
-  {
-    value: "deepseek/deepseek-chat",
-    label: "DeepSeek V3",
-  },
-  {
-    value: "meta-llama/llama-3.3-70b-instruct",
-    label: "Llama 3.3 70B",
-  },
-];
 
 interface DemoRoundStep {
   id: string;
@@ -147,6 +146,13 @@ const DEMO_ROUNDS: DemoRoundStep[] = [
 ];
 
 let demoBusy = false;
+let demoHistory: Record<string, string> = {};
+let demoUsageSteps: ShareUsageStepV1[] = [];
+const demoModels: Record<ModelKey, string> = {
+  strategist: "",
+  critic: "",
+  synthesizer: "",
+};
 
 const API_KEY_TOGGLE_SVG = {
   eye: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
@@ -172,26 +178,27 @@ function syncApiKeyToggleUi(): void {
   btn.title = masked ? "Show key" : "Mask key";
 }
 
-function fillSelectDisabled(selectId: string, fallbackValue: string): void {
-  const el = document.getElementById(selectId);
-  if (!(el instanceof HTMLSelectElement)) {
-    throw new Error(`Missing select #${selectId}`);
+function readDemoModelsFromDom(): void {
+  const s = document.getElementById("strategistModel");
+  const c = document.getElementById("criticModel");
+  const y = document.getElementById("synthesizerModel");
+  if (
+    !(s instanceof HTMLSelectElement) ||
+    !(c instanceof HTMLSelectElement) ||
+    !(y instanceof HTMLSelectElement)
+  ) {
+    throw new Error("Missing model selects.");
   }
-  el.replaceChildren();
-  for (const o of MODEL_PRESETS) {
-    const opt = document.createElement("option");
-    opt.value = o.value;
-    opt.textContent = o.label;
-    el.appendChild(opt);
-  }
-  el.value = fallbackValue;
-  el.disabled = true;
+  demoModels.strategist = s.value;
+  demoModels.critic = c.value;
+  demoModels.synthesizer = y.value;
 }
 
 function setupDemoForm(): void {
   fillSelectDisabled("strategistModel", "anthropic/claude-sonnet-4.6");
   fillSelectDisabled("criticModel", "google/gemini-2.5-pro");
   fillSelectDisabled("synthesizerModel", "anthropic/claude-sonnet-4.6");
+  readDemoModelsFromDom();
 
   const apiKeyEl = document.getElementById("apiKey");
   if (!(apiKeyEl instanceof HTMLInputElement)) {
@@ -228,22 +235,20 @@ function hideError(): void {
   el.style.display = "none";
 }
 
-function clearDemoUsage(): void {
-  const el = document.getElementById("sessionUsage");
-  if (!el) return;
-  el.replaceChildren();
-  el.hidden = true;
+function demoUsageForRound(roundIndex: number): ParsedUsage {
+  const bump = roundIndex * 4;
+  return {
+    prompt: 118 + bump,
+    completion: 76 + bump,
+    total: 194 + bump * 2,
+    cost: 0.00038 + roundIndex * 0.000012,
+  };
 }
 
-function showDemoUsageNote(): void {
-  const el = document.getElementById("sessionUsage");
-  if (!el) return;
-  el.hidden = false;
-  el.replaceChildren();
-  const p = document.createElement("p");
-  p.style.margin = "0";
-  p.textContent = "Demo — no OpenRouter usage or cost.";
-  el.appendChild(p);
+function modelIdForDemoRound(roundId: string): string {
+  if (roundId === "r9") return demoModels.synthesizer;
+  if (["r2", "r4", "r6", "r8"].includes(roundId)) return demoModels.critic;
+  return demoModels.strategist;
 }
 
 async function streamCanned(
@@ -271,11 +276,16 @@ async function startDemo(): Promise<void> {
   btnStart.disabled = true;
   const timeline = document.getElementById("timeline");
   if (timeline) timeline.innerHTML = "";
-  clearDemoUsage();
-  const btnReset = document.getElementById("btnReset");
-  if (btnReset instanceof HTMLElement) btnReset.style.display = "none";
+  clearSessionUsageSummary();
+  hideSessionDoneChrome();
+  readDemoModelsFromDom();
+  demoHistory = {};
+  demoUsageSteps = [];
+
+  const sessionUsageAgg = createEmptySessionUsageAgg();
 
   try {
+    let idx = 0;
     for (const step of DEMO_ROUNDS) {
       const parts = appendRoundCard({
         id: step.id,
@@ -285,12 +295,22 @@ async function startDemo(): Promise<void> {
       });
       await sleep(450);
       parts.typingEl.style.display = "none";
-      await streamCanned(parts.contentEl, step.text);
+      const finished = await streamCanned(parts.contentEl, step.text);
+      demoHistory[step.id] = finished;
+      const modelId = modelIdForDemoRound(step.id);
+      const usage = demoUsageForRound(idx);
+      mountRoundUsageFooter(parts.card, modelId, usage);
+      addUsageToSessionAgg(sessionUsageAgg, usage);
+      demoUsageSteps.push({ id: step.id, model: modelId, usage });
+      idx += 1;
       await sleep(200);
     }
-    showDemoUsageNote();
-    const br = document.getElementById("btnReset");
-    if (br instanceof HTMLElement) br.style.display = "block";
+    renderSessionUsageSummary(sessionUsageAgg, {
+      sessionTitle: "Session (demo — illustrative)",
+      footnote:
+        "Totals are placeholders for layout parity; this page does not call OpenRouter.",
+    });
+    showSessionDoneChrome();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     showError(message);
@@ -303,14 +323,68 @@ async function startDemo(): Promise<void> {
 function resetDemo(): void {
   const timeline = document.getElementById("timeline");
   if (timeline) timeline.innerHTML = "";
-  clearDemoUsage();
-  const btnReset = document.getElementById("btnReset");
+  clearSessionUsageSummary();
+  hideSessionDoneChrome();
+  const shareErr = document.getElementById("shareLoadError");
+  if (shareErr) {
+    shareErr.textContent = "";
+    shareErr.setAttribute("hidden", "");
+  }
+  const shareBanner = document.getElementById("shareViewBanner");
+  if (shareBanner) shareBanner.setAttribute("hidden", "");
   const btnStart = document.getElementById("btnStart");
-  if (btnReset instanceof HTMLElement) btnReset.style.display = "none";
   if (btnStart instanceof HTMLButtonElement) btnStart.disabled = false;
+  demoHistory = {};
+  demoUsageSteps = [];
   hideError();
   setupDemoForm();
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function copyDemoShareLink(): Promise<void> {
+  const briefEl = document.getElementById("brief");
+  const btnShareLink = document.getElementById("btnShareLink");
+  if (!(briefEl instanceof HTMLTextAreaElement)) return;
+  if (!(btnShareLink instanceof HTMLButtonElement)) return;
+  readDemoModelsFromDom();
+  try {
+    const payload = buildSharePayloadV1({
+      brief: briefEl.value.trim(),
+      strategist: demoModels.strategist,
+      critic: demoModels.critic,
+      synthesizer: demoModels.synthesizer,
+      rounds: demoHistory,
+      usageSteps: demoUsageSteps,
+      source: "demo",
+    });
+    const hash = await encodeShareHash(payload);
+    const url = shareUrlWithHash(location.origin, location.pathname, hash);
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      window.prompt("Copy this link:", url);
+      return;
+    }
+    window.history.replaceState(null, "", url);
+    const prev = btnShareLink.textContent;
+    btnShareLink.textContent = "Copied";
+    window.setTimeout(() => {
+      btnShareLink.textContent = prev;
+    }, 2000);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    showError(message);
+  }
+}
+
+function wireDemoShareViewer(payload: SharePayloadV1): void {
+  wireShareViewer(payload, {
+    models: demoModels,
+    applyPayloadToSessionState: (rounds, steps) => {
+      demoHistory = { ...rounds };
+      demoUsageSteps = steps ? [...steps] : [];
+    },
+  });
 }
 
 function wireDemo(): void {
@@ -319,6 +393,7 @@ function wireDemo(): void {
   const btnApiKeyToggle = document.getElementById("btnApiKeyToggle");
   const btnStart = document.getElementById("btnStart");
   const btnReset = document.getElementById("btnReset");
+  const btnShareLink = document.getElementById("btnShareLink");
 
   if (!(btnApiKeyToggle instanceof HTMLButtonElement)) {
     throw new Error("Missing #btnApiKeyToggle");
@@ -328,6 +403,9 @@ function wireDemo(): void {
   }
   if (!(btnReset instanceof HTMLButtonElement)) {
     throw new Error("Missing #btnReset");
+  }
+  if (!(btnShareLink instanceof HTMLButtonElement)) {
+    throw new Error("Missing #btnShareLink");
   }
 
   btnApiKeyToggle.addEventListener("click", () => {
@@ -339,6 +417,16 @@ function wireDemo(): void {
 
   btnStart.addEventListener("click", () => void startDemo());
   btnReset.addEventListener("click", resetDemo);
+  btnShareLink.addEventListener("click", () => void copyDemoShareLink());
 }
 
-wireDemo();
+export async function bootstrapDemoApp(): Promise<void> {
+  const loaded = await loadSharePayloadFromLocation();
+  if (loaded === "invalid") {
+    showShareDecodeError();
+  } else if (loaded) {
+    wireDemoShareViewer(loaded);
+    return;
+  }
+  wireDemo();
+}

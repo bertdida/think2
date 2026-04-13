@@ -1,10 +1,33 @@
 import { appendRoundCard, createStreamRenderer, escapeHtml } from "./shared.js";
-import { parseOpenRouterUsage, type ParsedUsage } from "./openrouter-usage.js";
+import { parseOpenRouterUsage } from "./openrouter-usage.js";
+import type { ModelKey } from "./debate-rounds.js";
+import type { RoundDef } from "./debate-rounds.js";
+import { ROUNDS } from "./debate-rounds.js";
+import { setupModelSelects } from "./model-selects.js";
+import { loadSharePayloadFromLocation } from "./share-bootstrap.js";
+import {
+  buildSharePayloadV1,
+  encodeShareHash,
+  shareUrlWithHash,
+  type SharePayloadV1,
+  type ShareUsageStepV1,
+} from "./share-payload.js";
+import {
+  hideSessionDoneChrome,
+  showSessionDoneChrome,
+  showShareDecodeError,
+  wireShareViewer,
+} from "./share-view.js";
+import {
+  addUsageToSessionAgg,
+  clearSessionUsageSummary,
+  createEmptySessionUsageAgg,
+  mountRoundUsageFooter,
+  renderSessionUsageSummary,
+  type SessionUsageAgg,
+} from "./usage-display.js";
 
 const OPENROUTER_ORIGIN = "https://openrouter.ai";
-const STORAGE_STRATEGIST = "think2.strategistModel";
-const STORAGE_CRITIC = "think2.criticModel";
-const STORAGE_SYNTHESIZER = "think2.synthesizerModel";
 const SESSION_MODEL_IDS = "think2.openrouterModelIds.v1";
 
 const SAMPLE_BRIEFS = [
@@ -22,212 +45,8 @@ const SAMPLE_BRIEFS = [
 
 const MODEL_ID_RE = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i;
 
-const MODEL_PRESETS: ReadonlyArray<{ value: string; label: string }> = [
-  {
-    value: "anthropic/claude-sonnet-4.6",
-    label: "Claude Sonnet 4.6",
-  },
-  {
-    value: "anthropic/claude-sonnet-4.5",
-    label: "Claude Sonnet 4.5",
-  },
-  {
-    value: "anthropic/claude-opus-4.5",
-    label: "Claude Opus 4.5",
-  },
-  { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-  { value: "openai/gpt-5", label: "GPT-5" },
-  {
-    value: "deepseek/deepseek-chat",
-    label: "DeepSeek V3",
-  },
-  {
-    value: "meta-llama/llama-3.3-70b-instruct",
-    label: "Llama 3.3 70B",
-  },
-];
-
-const DEBATE_TRANSCRIPT_ROUNDS: ReadonlyArray<[string, string]> = [
-  ["r1", "PLANNER (Round 1)"],
-  ["r2", "CHALLENGER (Round 2)"],
-  ["r3", "PLANNER (Round 3)"],
-  ["r4", "CHALLENGER (Round 4)"],
-  ["r5", "PLANNER (Round 5)"],
-  ["r6", "CHALLENGER (Round 6)"],
-  ["r7", "PLANNER (Round 7)"],
-  ["r8", "CHALLENGER (Round 8)"],
-];
-
-function debateTranscriptThrough(
-  brief: string,
-  history: Record<string, string>,
-  lastRoundId: string,
-): string {
-  const chunks = [`BRIEF:\n${brief}\n`];
-  for (const [id, label] of DEBATE_TRANSCRIPT_ROUNDS) {
-    const text = history[id];
-    if (typeof text === "string" && text.length > 0) {
-      chunks.push(`${label}:\n${text}\n`);
-    }
-    if (id === lastRoundId) break;
-  }
-  return chunks.join("\n");
-}
-
-const STRATEGIST_SYSTEM_OPENING = `You are a sharp, opinionated strategic advisor. When given a brief, propose a concrete, actionable strategy. Be direct. No fluff. Use bullet points where useful. Max 200 words.`;
-const STRATEGIST_SYSTEM_DEFENSE = `You are a sharp, opinionated strategic advisor defending your position under pressure. Be direct. Concede where the challenger has a point, but hold firm where you're confident. Max 200 words.`;
-const CRITIC_SYSTEM = `You are a ruthless but fair devil's advocate. Find the weakest points, challenge them with better alternatives or hard questions, and acknowledge what improved when it did. Do not agree just to be polite. Be specific. Max 200 words.`;
-
-interface ChatMessage {
-  role: "user" | "system" | "assistant";
-  content: string;
-}
-
-type ModelKey = "strategist" | "critic" | "synthesizer";
-
-interface RoundDef {
-  id: string;
-  speaker: string;
-  cls: string;
-  label: string;
-  modelKey: ModelKey;
-  buildMessages: (
-    brief: string,
-    history: Record<string, string>,
-  ) => ChatMessage[];
-  system: string;
-}
-
-const ROUNDS: RoundDef[] = [
-  {
-    id: "r1",
-    speaker: "Planner",
-    cls: "strategist",
-    label: "Round 1 — opening strategy",
-    modelKey: "strategist",
-    buildMessages: (brief) => [
-      {
-        role: "user",
-        content: `Here is the situation:\n\n${brief}\n\nPropose your strategy. Be direct, specific, and actionable. Max 200 words.`,
-      },
-    ],
-    system: STRATEGIST_SYSTEM_OPENING,
-  },
-  {
-    id: "r2",
-    speaker: "Challenger",
-    cls: "critic",
-    label: "Round 2 — challenge",
-    modelKey: "critic",
-    buildMessages: (brief, history) => [
-      {
-        role: "user",
-        content: `${debateTranscriptThrough(brief, history, "r1")}\nChallenge this strategy. Find the weakest points. Propose better alternatives where you disagree. Be specific. Max 200 words.`,
-      },
-    ],
-    system: CRITIC_SYSTEM,
-  },
-  {
-    id: "r3",
-    speaker: "Planner",
-    cls: "strategist",
-    label: "Round 3 — defense (1 of 3)",
-    modelKey: "strategist",
-    buildMessages: (brief, history) => [
-      {
-        role: "user",
-        content: `${debateTranscriptThrough(brief, history, "r2")}\nDefend or refine your position (first of three defense passes). Concede where the challenger is right. Hold firm where you're not. Max 200 words.`,
-      },
-    ],
-    system: STRATEGIST_SYSTEM_DEFENSE,
-  },
-  {
-    id: "r4",
-    speaker: "Challenger",
-    cls: "critic",
-    label: "Round 4 — challenge",
-    modelKey: "critic",
-    buildMessages: (brief, history) => [
-      {
-        role: "user",
-        content: `${debateTranscriptThrough(brief, history, "r3")}\nPush back on what still fails; acknowledge what improved. Max 200 words.`,
-      },
-    ],
-    system: CRITIC_SYSTEM,
-  },
-  {
-    id: "r5",
-    speaker: "Planner",
-    cls: "strategist",
-    label: "Round 5 — defense (2 of 3)",
-    modelKey: "strategist",
-    buildMessages: (brief, history) => [
-      {
-        role: "user",
-        content: `${debateTranscriptThrough(brief, history, "r4")}\nDefend or refine again (second of three defense passes). Max 200 words.`,
-      },
-    ],
-    system: STRATEGIST_SYSTEM_DEFENSE,
-  },
-  {
-    id: "r6",
-    speaker: "Challenger",
-    cls: "critic",
-    label: "Round 6 — challenge",
-    modelKey: "critic",
-    buildMessages: (brief, history) => [
-      {
-        role: "user",
-        content: `${debateTranscriptThrough(brief, history, "r5")}\nChallenge what still does not hold; credit stronger replies. Max 200 words.`,
-      },
-    ],
-    system: CRITIC_SYSTEM,
-  },
-  {
-    id: "r7",
-    speaker: "Planner",
-    cls: "strategist",
-    label: "Round 7 — defense (3 of 3)",
-    modelKey: "strategist",
-    buildMessages: (brief, history) => [
-      {
-        role: "user",
-        content: `${debateTranscriptThrough(brief, history, "r6")}\nDefend or refine (third and final defense pass). Be explicit about what you concede vs. what you stand on. Max 200 words.`,
-      },
-    ],
-    system: STRATEGIST_SYSTEM_DEFENSE,
-  },
-  {
-    id: "r8",
-    speaker: "Challenger",
-    cls: "critic",
-    label: "Round 8 — final challenge",
-    modelKey: "critic",
-    buildMessages: (brief, history) => [
-      {
-        role: "user",
-        content: `${debateTranscriptThrough(brief, history, "r7")}\nLast word before resolution: concede where they convinced you; push back where they did not. Max 200 words.`,
-      },
-    ],
-    system: CRITIC_SYSTEM,
-  },
-  {
-    id: "r9",
-    speaker: "Resolver",
-    cls: "synthesis",
-    label: "Final resolution",
-    modelKey: "synthesizer",
-    buildMessages: (brief, history) => [
-      {
-        role: "user",
-        content: `You observed a structured exchange: a planner defended their position in three passes against a challenger. Resolve the strongest threads into one final recommendation.\n\n${debateTranscriptThrough(brief, history, "r8")}\nFormat your response exactly as:\n\nVERDICT: (1 decisive sentence)\n\nKEY ACTIONS:\n- (action 1)\n- (action 2)\n- (action 3)\n- (action 4)\n\nWATCH OUT FOR:\n- (risk 1)\n- (risk 2)`,
-      },
-    ],
-    system: `You are a neutral senior advisor resolving a planner–challenger exchange into a final recommendation. Be decisive. No hedging. Follow the exact format requested.`,
-  },
-];
-
 let history: Record<string, string> = {};
+let sessionUsageSteps: ShareUsageStepV1[] = [];
 const models: Record<ModelKey, string> = {
   strategist: "",
   critic: "",
@@ -270,35 +89,6 @@ function hideError(): void {
   const el = document.getElementById("errorMsg");
   if (!el) return;
   el.style.display = "none";
-}
-
-function presetValues(): Set<string> {
-  return new Set(MODEL_PRESETS.map((p) => p.value));
-}
-
-function fillSelect(
-  selectId: string,
-  storageKey: string,
-  fallbackValue: string,
-): void {
-  const el = document.getElementById(selectId);
-  if (!(el instanceof HTMLSelectElement)) {
-    throw new Error(`Missing select #${selectId}`);
-  }
-  el.replaceChildren();
-  for (const o of MODEL_PRESETS) {
-    const opt = document.createElement("option");
-    opt.value = o.value;
-    opt.textContent = o.label;
-    el.appendChild(opt);
-  }
-  const allowed = presetValues();
-  const saved = localStorage.getItem(storageKey);
-  if (saved && allowed.has(saved)) el.value = saved;
-  else el.value = fallbackValue;
-  el.addEventListener("change", () => {
-    localStorage.setItem(storageKey, el.value);
-  });
 }
 
 interface OpenRouterModelRow {
@@ -374,131 +164,6 @@ function pickNextBrief(): string {
   const idx = SAMPLE_BRIEFS.indexOf(current);
   const nextIdx = idx === -1 ? 0 : (idx + 1) % SAMPLE_BRIEFS.length;
   return SAMPLE_BRIEFS[nextIdx] ?? "";
-}
-
-const usageMoneyFmt = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 4,
-  maximumFractionDigits: 6,
-});
-
-function usageHasAnyTokenOrCost(u: ParsedUsage): boolean {
-  return (
-    u.prompt != null ||
-    u.completion != null ||
-    u.total != null ||
-    u.cost != null
-  );
-}
-
-function sessionTokenContribution(u: ParsedUsage): number | null {
-  if (u.total != null) return u.total;
-  if (u.prompt != null && u.completion != null) return u.prompt + u.completion;
-  return null;
-}
-
-function mountRoundUsageFooter(
-  cardEl: HTMLElement,
-  modelId: string,
-  u: ParsedUsage,
-): void {
-  const inner = cardEl.querySelector(".card-inner");
-  if (!inner) return;
-
-  const wrap = document.createElement("div");
-  wrap.className = "round-usage";
-  wrap.setAttribute("role", "status");
-
-  const modelLine = document.createElement("span");
-  modelLine.className = "usage-model";
-  modelLine.textContent = modelId;
-
-  const detail = document.createElement("span");
-
-  if (!usageHasAnyTokenOrCost(u)) {
-    detail.textContent = "Usage unavailable from API for this step.";
-  } else {
-    const parts: string[] = [];
-    if (u.prompt != null) parts.push(`in ${u.prompt.toLocaleString()}`);
-    if (u.completion != null)
-      parts.push(`out ${u.completion.toLocaleString()}`);
-    if (u.total != null) parts.push(`total ${u.total.toLocaleString()}`);
-    let line = parts.join(" · ");
-    if (u.cost != null) {
-      line += ` · ${usageMoneyFmt.format(u.cost)}`;
-    }
-    detail.textContent = line;
-  }
-
-  wrap.appendChild(modelLine);
-  wrap.appendChild(detail);
-  inner.appendChild(wrap);
-}
-
-interface SessionUsageAgg {
-  tokensSum: number;
-  tokenRounds: number;
-  costSum: number;
-  costRounds: number;
-}
-
-function createEmptySessionUsageAgg(): SessionUsageAgg {
-  return {
-    tokensSum: 0,
-    tokenRounds: 0,
-    costSum: 0,
-    costRounds: 0,
-  };
-}
-
-function addUsageToSessionAgg(agg: SessionUsageAgg, u: ParsedUsage): void {
-  const tok = sessionTokenContribution(u);
-  if (tok != null) {
-    agg.tokensSum += tok;
-    agg.tokenRounds += 1;
-  }
-  if (u.cost != null) {
-    agg.costSum += u.cost;
-    agg.costRounds += 1;
-  }
-}
-
-function renderSessionUsageSummary(agg: SessionUsageAgg): void {
-  const el = document.getElementById("sessionUsage");
-  if (!el) return;
-  if (agg.tokenRounds === 0 && agg.costRounds === 0) {
-    el.replaceChildren();
-    el.hidden = true;
-    return;
-  }
-  el.hidden = false;
-  el.replaceChildren();
-  const strong = document.createElement("strong");
-  strong.textContent = "Session (OpenRouter)";
-  el.appendChild(strong);
-  const desc = document.createElement("p");
-  desc.style.margin = "6px 0 0";
-  const bits: string[] = [];
-  if (agg.tokenRounds > 0) {
-    bits.push(
-      `Σ tokens (per-step total, summed): ${agg.tokensSum.toLocaleString()} (${agg.tokenRounds} steps)`,
-    );
-  }
-  if (agg.costRounds > 0) {
-    bits.push(
-      `Σ cost: ${usageMoneyFmt.format(agg.costSum)} (${agg.costRounds} steps)`,
-    );
-  }
-  desc.textContent = bits.join(" — ");
-  el.appendChild(desc);
-}
-
-function clearSessionUsageSummary(): void {
-  const el = document.getElementById("sessionUsage");
-  if (!el) return;
-  el.replaceChildren();
-  el.hidden = true;
 }
 
 interface SseChoiceDelta {
@@ -596,6 +261,11 @@ async function runRound(
     const usageSnap = parseOpenRouterUsage(lastUsageRaw);
     mountRoundUsageFooter(card, model, usageSnap);
     addUsageToSessionAgg(sessionAgg, usageSnap);
+    sessionUsageSteps.push({
+      id: round.id,
+      model,
+      usage: usageSnap,
+    });
     return true;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -658,6 +328,7 @@ async function startDebate(): Promise<void> {
   if (timeline) timeline.innerHTML = "";
   clearSessionUsageSummary();
   history = {};
+  sessionUsageSteps = [];
   const sessionUsageAgg = createEmptySessionUsageAgg();
 
   let completed = false;
@@ -669,10 +340,11 @@ async function startDebate(): Promise<void> {
       const ok = await runRound(round, brief, apiKey, sessionUsageAgg);
       if (!ok) return;
     }
-    renderSessionUsageSummary(sessionUsageAgg);
+    renderSessionUsageSummary(sessionUsageAgg, {
+      sessionTitle: "Session (OpenRouter)",
+    });
     completed = true;
-    const btnReset = document.getElementById("btnReset");
-    if (btnReset instanceof HTMLElement) btnReset.style.display = "block";
+    showSessionDoneChrome();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     showError(message);
@@ -685,18 +357,35 @@ function resetSession(): void {
   const timeline = document.getElementById("timeline");
   if (timeline) timeline.innerHTML = "";
   clearSessionUsageSummary();
-  const btnReset = document.getElementById("btnReset");
+  hideSessionDoneChrome();
   const btnStart = document.getElementById("btnStart");
   const brief = document.getElementById("brief");
   const apiKeyEl = document.getElementById("apiKey");
-  if (btnReset instanceof HTMLElement) btnReset.style.display = "none";
   if (btnStart instanceof HTMLButtonElement) btnStart.disabled = false;
-  if (brief instanceof HTMLTextAreaElement) brief.value = "";
+  if (brief instanceof HTMLTextAreaElement) {
+    brief.value = "";
+    brief.readOnly = false;
+  }
+  for (const selId of ["strategistModel", "criticModel", "synthesizerModel"]) {
+    const el = document.getElementById(selId);
+    if (el instanceof HTMLSelectElement) el.disabled = false;
+  }
   if (apiKeyEl instanceof HTMLInputElement) {
     apiKeyEl.type = "password";
+    apiKeyEl.disabled = false;
     syncApiKeyToggleUi();
   }
+  const apiWrap = document.getElementById("apiKeyFieldWrap");
+  if (apiWrap instanceof HTMLElement) apiWrap.hidden = false;
+  const btnBriefClear = document.getElementById("btnBriefClear");
+  const btnBriefNext = document.getElementById("btnBriefNext");
+  const btnApiKeyToggle = document.getElementById("btnApiKeyToggle");
+  if (btnBriefClear instanceof HTMLButtonElement) btnBriefClear.disabled = false;
+  if (btnBriefNext instanceof HTMLButtonElement) btnBriefNext.disabled = false;
+  if (btnApiKeyToggle instanceof HTMLButtonElement)
+    btnApiKeyToggle.disabled = false;
   history = {};
+  sessionUsageSteps = [];
   hideError();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -724,9 +413,54 @@ function syncApiKeyToggleUi(): void {
   btn.title = masked ? "Show key" : "Mask key";
 }
 
+async function copyShareLinkFromSession(): Promise<void> {
+  const briefEl = document.getElementById("brief");
+  const btnShareLink = document.getElementById("btnShareLink");
+  if (!(briefEl instanceof HTMLTextAreaElement)) return;
+  if (!(btnShareLink instanceof HTMLButtonElement)) return;
+  try {
+    const payload = buildSharePayloadV1({
+      brief: briefEl.value.trim(),
+      strategist: models.strategist,
+      critic: models.critic,
+      synthesizer: models.synthesizer,
+      rounds: history,
+      usageSteps: sessionUsageSteps,
+    });
+    const hash = await encodeShareHash(payload);
+    const url = shareUrlWithHash(location.origin, location.pathname, hash);
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      window.prompt("Copy this link:", url);
+      return;
+    }
+    window.history.replaceState(null, "", url);
+    const prev = btnShareLink.textContent;
+    btnShareLink.textContent = "Copied";
+    window.setTimeout(() => {
+      btnShareLink.textContent = prev;
+    }, 2000);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    showError(message);
+  }
+}
+
+function wireLiveShareViewer(payload: SharePayloadV1): void {
+  wireShareViewer(payload, {
+    models,
+    applyPayloadToSessionState: (rounds, steps) => {
+      history = { ...rounds };
+      sessionUsageSteps = steps ? [...steps] : [];
+    },
+  });
+}
+
 function wireApp(): void {
   const btnStart = document.getElementById("btnStart");
   const btnReset = document.getElementById("btnReset");
+  const btnShareLink = document.getElementById("btnShareLink");
   const btnBriefClear = document.getElementById("btnBriefClear");
   const btnBriefNext = document.getElementById("btnBriefNext");
   const btnApiKeyToggle = document.getElementById("btnApiKeyToggle");
@@ -736,6 +470,9 @@ function wireApp(): void {
   }
   if (!(btnReset instanceof HTMLButtonElement)) {
     throw new Error("Missing #btnReset");
+  }
+  if (!(btnShareLink instanceof HTMLButtonElement)) {
+    throw new Error("Missing #btnShareLink");
   }
   if (!(btnBriefClear instanceof HTMLButtonElement)) {
     throw new Error("Missing #btnBriefClear");
@@ -749,6 +486,7 @@ function wireApp(): void {
 
   btnStart.addEventListener("click", () => void startDebate());
   btnReset.addEventListener("click", resetSession);
+  btnShareLink.addEventListener("click", () => void copyShareLinkFromSession());
 
   btnBriefClear.addEventListener("click", () => {
     const briefEl = document.getElementById("brief");
@@ -771,17 +509,20 @@ function wireApp(): void {
 
   syncApiKeyToggleUi();
 
-  fillSelect(
-    "strategistModel",
-    STORAGE_STRATEGIST,
-    "anthropic/claude-sonnet-4.6",
-  );
-  fillSelect("criticModel", STORAGE_CRITIC, "google/gemini-2.5-pro");
-  fillSelect(
-    "synthesizerModel",
-    STORAGE_SYNTHESIZER,
-    "anthropic/claude-sonnet-4.6",
-  );
+  setupModelSelects();
 }
 
-wireApp();
+async function init(): Promise<void> {
+  const loaded = await loadSharePayloadFromLocation();
+  if (loaded === "invalid") {
+    showShareDecodeError();
+  } else if (loaded) {
+    wireLiveShareViewer(loaded);
+    return;
+  }
+  wireApp();
+}
+
+export function bootstrapLiveApp(): void {
+  void init();
+}
