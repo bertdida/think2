@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="think2 stress-tests your plan with two AI models over eight rounds on your brief (three strategist defenses), then synthesizes a verdict and action list. Bring your OpenRouter API key — it stays in your browser."
+      content="think2 runs a structured AI debate on your brief—two models over eight rounds (three strategist defenses), then a synthesizer verdict and actions. Bring your OpenRouter API key — it stays in your browser."
     />
     <meta name="robots" content="index,follow" />
     <meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)" />
@@ -13,25 +13,25 @@
     <link rel="canonical" href="https://think2.xyz/" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://think2.xyz/" />
-    <meta property="og:title" content="think2 — stress-test a plan, get a clear verdict" />
+    <meta property="og:title" content="think2 — two AIs debate your brief, clear verdict" />
     <meta
       property="og:description"
-      content="think2 stress-tests your plan with two AI models over eight rounds on your brief (three strategist defenses), then synthesizes a verdict and action list. Bring your OpenRouter API key — it stays in your browser."
+      content="think2 runs a structured AI debate on your brief—two models over eight rounds (three strategist defenses), then a synthesizer verdict and actions. Bring your OpenRouter API key — it stays in your browser."
     />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="think2 — stress-test a plan, get a clear verdict" />
+    <meta name="twitter:title" content="think2 — two AIs debate your brief, clear verdict" />
     <meta
       name="twitter:description"
-      content="Stress-test a plan with two AI models; get a synthesized verdict. Your OpenRouter key never leaves the browser."
+      content="Two AI models debate your brief; a third synthesizes the verdict. Your OpenRouter key never leaves the browser."
     />
-    <title>think2 — stress-test a plan, get a clear verdict</title>
+    <title>think2 — two AIs debate your brief, clear verdict</title>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "WebApplication",
         "name": "think2",
         "url": "https://think2.xyz/",
-        "description": "Stress-test a plan: two AI models challenge your brief over eight rounds, then a synthesizer returns a verdict and key actions. Uses your OpenRouter API key in the browser only.",
+        "description": "Structured AI debate on your brief: two models over eight rounds, then a synthesizer returns a verdict and key actions. Uses your OpenRouter API key in the browser only.",
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Web browser",
         "browserRequirements": "Requires JavaScript. User-supplied OpenRouter API key.",
@@ -739,7 +739,7 @@
         aria-labelledby="setup-heading"
       >
         <h2 id="setup-heading">Session setup</h2>
-        <form id="councilForm" onsubmit="return false">
+        <form id="debateForm" onsubmit="return false">
           <div class="field">
             <label for="apiKey">OpenRouter API key</label>
             <div class="api-key-wrap">
@@ -802,7 +802,7 @@
           </div>
 
           <button class="btn-start" id="btnStart" type="button">
-            Start the council
+            Start the debate
           </button>
           <div
             class="error-msg"
@@ -813,7 +813,7 @@
         </form>
       </section>
 
-      <section class="debate" aria-label="Strategy debate transcript">
+      <section class="debate" aria-label="Debate transcript">
         <div class="timeline" id="timeline"></div>
         <div class="session-usage" id="sessionUsage" hidden></div>
       </section>
@@ -823,8 +823,8 @@
 
     <footer class="site-footer">
       <p>
-        <a href="https://think2.xyz/">think2.xyz</a> — stress-test a plan, get a
-        clear verdict.
+        <a href="https://think2.xyz/">think2.xyz</a> — two AIs debate your brief,
+        then a clear verdict.
       </p>
     </footer>
 
@@ -1532,7 +1532,7 @@
         }
       }
 
-      async function startCouncil() {
+      async function startDebate() {
         const apiKey = document.getElementById("apiKey").value.trim();
         const brief = document.getElementById("brief").value.trim();
         const btnStart = document.getElementById("btnStart");
@@ -1597,7 +1597,7 @@
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
 
-      document.getElementById("btnStart").addEventListener("click", startCouncil);
+      document.getElementById("btnStart").addEventListener("click", startDebate);
       document.getElementById("btnReset").addEventListener("click", resetSession);
 
       document.getElementById("btnBriefClear").addEventListener("click", () => {

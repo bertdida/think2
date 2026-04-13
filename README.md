@@ -1,8 +1,8 @@
 # think2
 
-**think2** is a small web app that helps you think through a problem with **two AI models** arguing different sides, then a **third model** summarizing the debate into a clear verdict and next steps.
+**think2** is a small web app that runs a **structured AI debate** on your brief: **two models** argue opposing sides over several rounds, then a **third model** synthesizes a clear verdict and next steps.
 
-You describe your situation once. The models debate over several rounds. At the end you get a structured answer (verdict, actions, risks).
+You describe your situation once. The debate streams round by round. At the end you get a structured answer (verdict, actions, risks).
 
 ---
 
@@ -12,7 +12,7 @@ You describe your situation once. The models debate over several rounds. At the 
 2. Paste your **[OpenRouter](https://openrouter.ai/) API key**. It is **only used in your browser** to call OpenRouter. It is **not saved** and disappears when you reload the page.
 3. Choose **Strategist**, **Critic**, and **Synthesizer** models (defaults are sensible; your choices are remembered in the browser).
 4. Write your **brief** — what is going on, what you have tried, what you want decided. Use **Next sample brief** or **Clear** if you want quick examples or a blank field.
-5. Click **Start the council** and read the debate as it streams.
+5. Click **Start the debate** and read the transcript as it streams.
 
 **New session** clears the debate and your brief; your key field is not stored anyway.
 
