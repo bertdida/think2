@@ -13,25 +13,25 @@
     <link rel="canonical" href="https://think2.xyz/" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://think2.xyz/" />
-    <meta property="og:title" content="think2 — stress-tested advice: two AIs, one clear verdict" />
+    <meta property="og:title" content="think2 — stress-tested advice, one clear verdict" />
     <meta
       property="og:description"
       content="think2: describe your situation once. One AI proposes a plan, another challenges it, and a third turns the exchange into a clear verdict, next steps, and risks to watch for. Your OpenRouter API key is used only in this browser tab—it is not saved."
     />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="think2 — stress-tested advice: two AIs, one clear verdict" />
+    <meta name="twitter:title" content="think2 — stress-tested advice, one clear verdict" />
     <meta
       name="twitter:description"
-      content="One AI plans, another pushes back, a third synthesizes verdict, actions, and risks. Your OpenRouter key never leaves the browser."
+      content="One AI plans, another pushes back, a third resolves it into verdict, actions, and risks. Your OpenRouter key never leaves the browser."
     />
-    <title>think2 — stress-tested advice: two AIs, one clear verdict</title>
+    <title>think2 — stress-tested advice, one clear verdict</title>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "WebApplication",
         "name": "think2",
         "url": "https://think2.xyz/",
-        "description": "Stress-tested recommendations: two AI models refine a plan through structured challenge; a third model outputs a verdict, key actions, and risks. Uses the user's OpenRouter API key in the browser only.",
+        "description": "Stress-tested recommendations: two AI models plan and challenge; a third resolves the exchange into a verdict, key actions, and risks. Uses the user's OpenRouter API key in the browser only.",
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Web browser",
         "browserRequirements": "Requires JavaScript. User-supplied OpenRouter API key.",
@@ -767,21 +767,21 @@
 
           <div class="models-row">
             <div class="field">
-              <label for="strategistModel">Strategist model</label>
+              <label for="strategistModel">Planner model</label>
               <select id="strategistModel" name="strategistModel"></select>
-              <div class="model-tag s">Strategist</div>
+              <div class="model-tag s">Planner</div>
             </div>
             <div class="field">
-              <label for="criticModel">Critic model</label>
+              <label for="criticModel">Challenger model</label>
               <select id="criticModel" name="criticModel"></select>
-              <div class="model-tag c">Critic</div>
+              <div class="model-tag c">Challenger</div>
             </div>
           </div>
 
           <div class="field">
-            <label for="synthesizerModel">Synthesizer model</label>
+            <label for="synthesizerModel">Resolver model</label>
             <select id="synthesizerModel" name="synthesizerModel"></select>
-            <div class="model-tag y">Final step — verdict</div>
+            <div class="model-tag y">Final step — resolution</div>
           </div>
 
           <div class="field">
@@ -823,8 +823,8 @@
 
     <footer class="site-footer">
       <p>
-        <a href="https://think2.xyz/">think2.xyz</a> — two AI perspectives
-        stress-test your situation, then a clear verdict and next steps.
+        <a href="https://think2.xyz/">think2.xyz</a> — plan it, challenge it,
+        resolve it. Stress-tested advice: a clear verdict and next steps.
       </p>
     </footer>
 
@@ -879,14 +879,14 @@
 
       /** @type {readonly [string, string][]} */
       const DEBATE_TRANSCRIPT_ROUNDS = [
-        ["r1", "STRATEGIST (Round 1)"],
-        ["r2", "CRITIC (Round 2)"],
-        ["r3", "STRATEGIST (Round 3)"],
-        ["r4", "CRITIC (Round 4)"],
-        ["r5", "STRATEGIST (Round 5)"],
-        ["r6", "CRITIC (Round 6)"],
-        ["r7", "STRATEGIST (Round 7)"],
-        ["r8", "CRITIC (Round 8)"],
+        ["r1", "PLANNER (Round 1)"],
+        ["r2", "CHALLENGER (Round 2)"],
+        ["r3", "PLANNER (Round 3)"],
+        ["r4", "CHALLENGER (Round 4)"],
+        ["r5", "PLANNER (Round 5)"],
+        ["r6", "CHALLENGER (Round 6)"],
+        ["r7", "PLANNER (Round 7)"],
+        ["r8", "CHALLENGER (Round 8)"],
       ];
 
       /**
@@ -907,13 +907,13 @@
       }
 
       const STRATEGIST_SYSTEM_OPENING = `You are a sharp, opinionated strategic advisor. When given a brief, propose a concrete, actionable strategy. Be direct. No fluff. Use bullet points where useful. Max 200 words.`;
-      const STRATEGIST_SYSTEM_DEFENSE = `You are a sharp, opinionated strategic advisor defending your position under pressure. Be direct. Concede where the critic has a point, but hold firm where you're confident. Max 200 words.`;
+      const STRATEGIST_SYSTEM_DEFENSE = `You are a sharp, opinionated strategic advisor defending your position under pressure. Be direct. Concede where the challenger has a point, but hold firm where you're confident. Max 200 words.`;
       const CRITIC_SYSTEM = `You are a ruthless but fair devil's advocate. Find the weakest points, challenge them with better alternatives or hard questions, and acknowledge what improved when it did. Do not agree just to be polite. Be specific. Max 200 words.`;
 
       const ROUNDS = [
         {
           id: "r1",
-          speaker: "Strategist",
+          speaker: "Planner",
           cls: "strategist",
           label: "Round 1 — opening strategy",
           modelKey: "strategist",
@@ -927,7 +927,7 @@
         },
         {
           id: "r2",
-          speaker: "Critic",
+          speaker: "Challenger",
           cls: "critic",
           label: "Round 2 — challenge",
           modelKey: "critic",
@@ -941,21 +941,21 @@
         },
         {
           id: "r3",
-          speaker: "Strategist",
+          speaker: "Planner",
           cls: "strategist",
           label: "Round 3 — defense (1 of 3)",
           modelKey: "strategist",
           buildMessages: (brief, history) => [
             {
               role: "user",
-              content: `${debateTranscriptThrough(brief, history, "r2")}\nDefend or refine your position (first of three defense passes). Concede where the critic is right. Hold firm where you're not. Max 200 words.`,
+              content: `${debateTranscriptThrough(brief, history, "r2")}\nDefend or refine your position (first of three defense passes). Concede where the challenger is right. Hold firm where you're not. Max 200 words.`,
             },
           ],
           system: STRATEGIST_SYSTEM_DEFENSE,
         },
         {
           id: "r4",
-          speaker: "Critic",
+          speaker: "Challenger",
           cls: "critic",
           label: "Round 4 — challenge",
           modelKey: "critic",
@@ -969,7 +969,7 @@
         },
         {
           id: "r5",
-          speaker: "Strategist",
+          speaker: "Planner",
           cls: "strategist",
           label: "Round 5 — defense (2 of 3)",
           modelKey: "strategist",
@@ -983,7 +983,7 @@
         },
         {
           id: "r6",
-          speaker: "Critic",
+          speaker: "Challenger",
           cls: "critic",
           label: "Round 6 — challenge",
           modelKey: "critic",
@@ -997,7 +997,7 @@
         },
         {
           id: "r7",
-          speaker: "Strategist",
+          speaker: "Planner",
           cls: "strategist",
           label: "Round 7 — defense (3 of 3)",
           modelKey: "strategist",
@@ -1011,31 +1011,31 @@
         },
         {
           id: "r8",
-          speaker: "Critic",
+          speaker: "Challenger",
           cls: "critic",
           label: "Round 8 — final challenge",
           modelKey: "critic",
           buildMessages: (brief, history) => [
             {
               role: "user",
-              content: `${debateTranscriptThrough(brief, history, "r7")}\nLast word before synthesis: concede where they convinced you; push back where they did not. Max 200 words.`,
+              content: `${debateTranscriptThrough(brief, history, "r7")}\nLast word before resolution: concede where they convinced you; push back where they did not. Max 200 words.`,
             },
           ],
           system: CRITIC_SYSTEM,
         },
         {
           id: "r9",
-          speaker: "Synthesizer",
+          speaker: "Resolver",
           cls: "synthesis",
-          label: "Final recommendation",
+          label: "Final resolution",
           modelKey: "synthesizer",
           buildMessages: (brief, history) => [
             {
               role: "user",
-              content: `You observed a strategic debate (three strategist defense passes). Synthesize the strongest points into a final recommendation.\n\n${debateTranscriptThrough(brief, history, "r8")}\nFormat your response exactly as:\n\nVERDICT: (1 decisive sentence)\n\nKEY ACTIONS:\n- (action 1)\n- (action 2)\n- (action 3)\n- (action 4)\n\nWATCH OUT FOR:\n- (risk 1)\n- (risk 2)`,
+              content: `You observed a structured exchange: a planner defended their position in three passes against a challenger. Resolve the strongest threads into one final recommendation.\n\n${debateTranscriptThrough(brief, history, "r8")}\nFormat your response exactly as:\n\nVERDICT: (1 decisive sentence)\n\nKEY ACTIONS:\n- (action 1)\n- (action 2)\n- (action 3)\n- (action 4)\n\nWATCH OUT FOR:\n- (risk 1)\n- (risk 2)`,
             },
           ],
-          system: `You are a neutral senior advisor synthesizing a debate into a final recommendation. Be decisive. No hedging. Follow the exact format requested.`,
+          system: `You are a neutral senior advisor resolving a planner–challenger exchange into a final recommendation. Be decisive. No hedging. Follow the exact format requested.`,
         },
       ];
 

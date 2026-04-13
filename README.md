@@ -1,6 +1,6 @@
 # think2
 
-**think2** is a small web app for **stress-tested recommendations**: you describe your situation once; **two AI models** refine a plan through structured challenge; a **third model** synthesizes a clear **verdict**, **next steps**, and **risks**.
+**think2** is a small web app for **stress-tested recommendations**: you describe your situation once; **two AI models** plan and challenge; a **third** resolves the exchange into a clear **verdict**, **next steps**, and **risks**.
 
 The exchange streams step by step. At the end you get a structured answer (verdict, actions, risks).
 
@@ -10,7 +10,7 @@ The exchange streams step by step. At the end you get a structured answer (verdi
 
 1. Open **`index.html`** in a modern browser (or host the file on any static site).
 2. Paste your **[OpenRouter](https://openrouter.ai/) API key**. It is **only used in your browser** to call OpenRouter. It is **not saved** and disappears when you reload the page.
-3. Choose **Strategist**, **Critic**, and **Synthesizer** models (defaults are sensible; your choices are remembered in the browser).
+3. Choose **Planner**, **Challenger**, and **Resolver** models (defaults are sensible; your choices are remembered in the browser).
 4. Write **your situation** — what is going on, what you have tried, what you want decided. Use **Next sample** or **Clear** if you want quick examples or a blank field.
 5. Click **Get my recommendation** and read **how we got there** as it streams.
 
