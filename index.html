@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="think2 runs a structured AI debate on your brief—two models over eight rounds (three strategist defenses), then a synthesizer verdict and actions. Bring your OpenRouter API key — it stays in your browser."
+      content="think2: describe your situation once. One AI proposes a plan, another challenges it, and a third turns the exchange into a clear verdict, next steps, and risks to watch for. Your OpenRouter API key is used only in this browser tab—it is not saved."
     />
     <meta name="robots" content="index,follow" />
     <meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)" />
@@ -13,25 +13,25 @@
     <link rel="canonical" href="https://think2.xyz/" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://think2.xyz/" />
-    <meta property="og:title" content="think2 — two AIs debate your brief, clear verdict" />
+    <meta property="og:title" content="think2 — stress-tested advice: two AIs, one clear verdict" />
     <meta
       property="og:description"
-      content="think2 runs a structured AI debate on your brief—two models over eight rounds (three strategist defenses), then a synthesizer verdict and actions. Bring your OpenRouter API key — it stays in your browser."
+      content="think2: describe your situation once. One AI proposes a plan, another challenges it, and a third turns the exchange into a clear verdict, next steps, and risks to watch for. Your OpenRouter API key is used only in this browser tab—it is not saved."
     />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="think2 — two AIs debate your brief, clear verdict" />
+    <meta name="twitter:title" content="think2 — stress-tested advice: two AIs, one clear verdict" />
     <meta
       name="twitter:description"
-      content="Two AI models debate your brief; a third synthesizes the verdict. Your OpenRouter key never leaves the browser."
+      content="One AI plans, another pushes back, a third synthesizes verdict, actions, and risks. Your OpenRouter key never leaves the browser."
     />
-    <title>think2 — two AIs debate your brief, clear verdict</title>
+    <title>think2 — stress-tested advice: two AIs, one clear verdict</title>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "WebApplication",
         "name": "think2",
         "url": "https://think2.xyz/",
-        "description": "Structured AI debate on your brief: two models over eight rounds, then a synthesizer returns a verdict and key actions. Uses your OpenRouter API key in the browser only.",
+        "description": "Stress-tested recommendations: two AI models refine a plan through structured challenge; a third model outputs a verdict, key actions, and risks. Uses the user's OpenRouter API key in the browser only.",
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Web browser",
         "browserRequirements": "Requires JavaScript. User-supplied OpenRouter API key.",
@@ -781,28 +781,28 @@
           <div class="field">
             <label for="synthesizerModel">Synthesizer model</label>
             <select id="synthesizerModel" name="synthesizerModel"></select>
-            <div class="model-tag y">Final round — verdict</div>
+            <div class="model-tag y">Final step — verdict</div>
           </div>
 
           <div class="field">
-            <label for="brief">Your brief — situation or problem</label>
+            <label for="brief">Your situation</label>
             <textarea
               id="brief"
               name="brief"
-              placeholder="What is going on, what have you tried, and what do you want decided?"
+              placeholder="Describe what is going on, what you have tried, and what you want decided."
             ></textarea>
             <div class="brief-actions">
               <button type="button" class="brief-action" id="btnBriefClear">
                 Clear
               </button>
               <button type="button" class="brief-action" id="btnBriefNext">
-                Next sample brief
+                Next sample
               </button>
             </div>
           </div>
 
           <button class="btn-start" id="btnStart" type="button">
-            Start the debate
+            Get my recommendation
           </button>
           <div
             class="error-msg"
@@ -813,7 +813,7 @@
         </form>
       </section>
 
-      <section class="debate" aria-label="Debate transcript">
+      <section class="debate" aria-label="How we got there">
         <div class="timeline" id="timeline"></div>
         <div class="session-usage" id="sessionUsage" hidden></div>
       </section>
@@ -823,8 +823,8 @@
 
     <footer class="site-footer">
       <p>
-        <a href="https://think2.xyz/">think2.xyz</a> — two AIs debate your brief,
-        then a clear verdict.
+        <a href="https://think2.xyz/">think2.xyz</a> — two AI perspectives
+        stress-test your situation, then a clear verdict and next steps.
       </p>
     </footer>
 
@@ -1321,7 +1321,7 @@
         const detail = document.createElement("span");
 
         if (!usageHasAnyTokenOrCost(u)) {
-          detail.textContent = "Usage unavailable from API for this round.";
+          detail.textContent = "Usage unavailable from API for this step.";
         } else {
           const parts = [];
           if (u.prompt != null) parts.push(`in ${u.prompt.toLocaleString()}`);
@@ -1389,12 +1389,12 @@
         const bits = [];
         if (agg.tokenRounds > 0) {
           bits.push(
-            `Σ tokens (per-round total, summed): ${agg.tokensSum.toLocaleString()} (${agg.tokenRounds} rounds)`,
+            `Σ tokens (per-step total, summed): ${agg.tokensSum.toLocaleString()} (${agg.tokenRounds} steps)`,
           );
         }
         if (agg.costRounds > 0) {
           bits.push(
-            `Σ cost: ${usageMoneyFmt.format(agg.costSum)} (${agg.costRounds} rounds)`,
+            `Σ cost: ${usageMoneyFmt.format(agg.costSum)} (${agg.costRounds} steps)`,
           );
         }
         desc.textContent = bits.join(" — ");
@@ -1527,7 +1527,7 @@
           }
           contentEl.innerHTML = `<span class="stream-error">Error: ${escapeHtml(message)}</span>`;
           history[round.id] = "[error]";
-          showError(`Round failed: ${message}`);
+          showError(`This step failed: ${message}`);
           return false;
         }
       }
@@ -1538,7 +1538,7 @@
         const btnStart = document.getElementById("btnStart");
 
         if (!apiKey) return showError("Paste your OpenRouter API key first.");
-        if (!brief) return showError("Write your brief first.");
+        if (!brief) return showError("Describe your situation first.");
 
         models.strategist = document.getElementById("strategistModel").value;
         models.critic = document.getElementById("criticModel").value;

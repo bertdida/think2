@@ -1,8 +1,8 @@
 # think2
 
-**think2** is a small web app that runs a **structured AI debate** on your brief: **two models** argue opposing sides over several rounds, then a **third model** synthesizes a clear verdict and next steps.
+**think2** is a small web app for **stress-tested recommendations**: you describe your situation once; **two AI models** refine a plan through structured challenge; a **third model** synthesizes a clear **verdict**, **next steps**, and **risks**.
 
-You describe your situation once. The debate streams round by round. At the end you get a structured answer (verdict, actions, risks).
+The exchange streams step by step. At the end you get a structured answer (verdict, actions, risks).
 
 ---
 
@@ -11,10 +11,10 @@ You describe your situation once. The debate streams round by round. At the end 
 1. Open **`index.html`** in a modern browser (or host the file on any static site).
 2. Paste your **[OpenRouter](https://openrouter.ai/) API key**. It is **only used in your browser** to call OpenRouter. It is **not saved** and disappears when you reload the page.
 3. Choose **Strategist**, **Critic**, and **Synthesizer** models (defaults are sensible; your choices are remembered in the browser).
-4. Write your **brief** — what is going on, what you have tried, what you want decided. Use **Next sample brief** or **Clear** if you want quick examples or a blank field.
-5. Click **Start the debate** and read the transcript as it streams.
+4. Write **your situation** — what is going on, what you have tried, what you want decided. Use **Next sample** or **Clear** if you want quick examples or a blank field.
+5. Click **Get my recommendation** and read **how we got there** as it streams.
 
-**New session** clears the debate and your brief; your key field is not stored anyway.
+**New session** clears the run and your situation text; your key field is not stored anyway.
 
 ---
 
@@ -37,7 +37,7 @@ There is **no server** and **no build step** — just this repo’s HTML file.
 
 ## Privacy (short version)
 
-- Your **API key** and **brief** stay in the page session. Nothing is sent to a think2 server — there isn’t one.
+- Your **API key** and **situation text** stay in the page session. Nothing is sent to a think2 server — there isn’t one.
 - Only **OpenRouter** receives the key and the prompts you send when you run a session.
 
 ---
