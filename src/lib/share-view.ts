@@ -1,4 +1,9 @@
-import { appendRoundCard, escapeHtml } from "./shared.js";
+import {
+  appendRoundCard,
+  escapeHtml,
+  scrollDocumentToBottom,
+  setTimelineScrollFollow,
+} from "./shared.js";
 import type { ModelKey } from "./debate-rounds.js";
 import { ROUNDS } from "./debate-rounds.js";
 import { ensureSelectHasValue, setupModelSelects } from "./model-selects.js";
@@ -29,6 +34,7 @@ export function showSessionDoneChrome(): void {
   if (btnReset instanceof HTMLButtonElement) {
     btnReset.disabled = false;
   }
+  scrollDocumentToBottom();
 }
 
 export function hideSessionDoneChrome(): void {
@@ -71,6 +77,7 @@ export function renderSessionFromSnapshot(
   payload: SharePayload,
   models: Record<ModelKey, string>,
 ): void {
+  setTimelineScrollFollow(false);
   const timeline = document.getElementById("timeline");
   if (timeline) timeline.innerHTML = "";
   clearSessionUsageSummary();
@@ -180,6 +187,4 @@ export function wireShareViewer(
       ui.cancelLoading();
     }
   });
-
-  window.scrollTo({ top: 0, behavior: "auto" });
 }

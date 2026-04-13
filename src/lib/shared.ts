@@ -1,5 +1,46 @@
 const SCROLL_BOTTOM_TOLERANCE_PX = 64;
 
+let timelineScrollFollow = false;
+let timelineScrollFollowListenerInstalled = false;
+
+function syncTimelineScrollFollowFromScrollPosition(): void {
+  timelineScrollFollow = isDocumentPinnedToBottom(document.scrollingElement);
+}
+
+/**
+ * Keeps `timelineScrollFollow` in sync with whether the viewport is pinned to
+ * the document bottom. Auto-scroll runs only while this is true, except when
+ * {@link setTimelineScrollFollow} is used to opt in at run start.
+ */
+export function ensureTimelineScrollFollowListener(): void {
+  if (typeof window === "undefined") return;
+  if (timelineScrollFollowListenerInstalled) return;
+  timelineScrollFollowListenerInstalled = true;
+  const onScroll = () => {
+    syncTimelineScrollFollowFromScrollPosition();
+  };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  syncTimelineScrollFollowFromScrollPosition();
+}
+
+/** Opt in/out of timeline auto-scroll (e.g. true when a live/demo run starts). */
+export function setTimelineScrollFollow(follow: boolean): void {
+  timelineScrollFollow = follow;
+}
+
+/** Scrolls the main document so the latest timeline content is in view. */
+export function scrollDocumentToBottom(): void {
+  const root = document.scrollingElement;
+  if (!root) return;
+  root.scrollTop = root.scrollHeight;
+}
+
+/** Like {@link scrollDocumentToBottom} but only when the user is following the timeline. */
+export function scrollTimelineToBottomIfFollowing(): void {
+  if (!timelineScrollFollow) return;
+  scrollDocumentToBottom();
+}
+
 export function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")
@@ -38,9 +79,8 @@ export function createStreamRenderer(contentEl: HTMLElement): StreamRenderer {
 
   const flushScroll = () => {
     scrollRaf = 0;
-    const root = document.scrollingElement;
-    if (root && isDocumentPinnedToBottom(root)) {
-      root.scrollTop = root.scrollHeight;
+    if (timelineScrollFollow) {
+      scrollDocumentToBottom();
     }
   };
 
@@ -64,6 +104,7 @@ export function createStreamRenderer(contentEl: HTMLElement): StreamRenderer {
       scrollRaf = 0;
       textSpan.textContent = fullText;
       contentEl.replaceChildren(textSpan);
+      scrollTimelineToBottomIfFollowing();
       return fullText;
     },
   };
@@ -107,10 +148,10 @@ export function appendRoundCard(
   `;
   timeline.appendChild(card);
 
-  requestAnimationFrame(() => card.classList.add("animated"));
-  if (isDocumentPinnedToBottom(document.scrollingElement)) {
-    card.scrollIntoView({ behavior: "smooth", block: "end" });
-  }
+  requestAnimationFrame(() => {
+    card.classList.add("animated");
+    scrollTimelineToBottomIfFollowing();
+  });
 
   const contentEl = document.getElementById(`content-${roundDisplay.id}`);
   const typingEl = document.getElementById(`typing-${roundDisplay.id}`);

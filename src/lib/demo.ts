@@ -1,4 +1,8 @@
-import { appendRoundCard, createStreamRenderer } from "./shared.js";
+import {
+  appendRoundCard,
+  createStreamRenderer,
+  setTimelineScrollFollow,
+} from "./shared.js";
 import type { ModelKey } from "./debate-rounds.js";
 import { fillSelectDisabled } from "./model-selects.js";
 import type { ParsedUsage } from "./openrouter-usage.js";
@@ -274,6 +278,7 @@ async function startDemo(): Promise<void> {
   }
   hideError();
   btnStart.disabled = true;
+  setTimelineScrollFollow(true);
   const timeline = document.getElementById("timeline");
   if (timeline) timeline.innerHTML = "";
   clearSessionUsageSummary();

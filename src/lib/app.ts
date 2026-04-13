@@ -1,4 +1,9 @@
-import { appendRoundCard, createStreamRenderer, escapeHtml } from "./shared.js";
+import {
+  appendRoundCard,
+  createStreamRenderer,
+  escapeHtml,
+  setTimelineScrollFollow,
+} from "./shared.js";
 import { parseOpenRouterUsage } from "./openrouter-usage.js";
 import type { ModelKey } from "./debate-rounds.js";
 import type { RoundDef } from "./debate-rounds.js";
@@ -324,6 +329,7 @@ async function startDebate(): Promise<void> {
 
   hideError();
   btnStart.disabled = true;
+  setTimelineScrollFollow(true);
   const timeline = document.getElementById("timeline");
   if (timeline) timeline.innerHTML = "";
   clearSessionUsageSummary();

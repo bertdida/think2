@@ -1,4 +1,5 @@
 import type { ParsedUsage } from "./openrouter-usage.js";
+import { scrollTimelineToBottomIfFollowing } from "./shared.js";
 
 /** Per-round usage captured during a live or demo run (not part of share URL JSON). */
 export interface SessionUsageStep {
@@ -65,6 +66,7 @@ export function mountRoundUsageFooter(
   wrap.appendChild(modelLine);
   wrap.appendChild(detail);
   inner.appendChild(wrap);
+  scrollTimelineToBottomIfFollowing();
 }
 
 export interface SessionUsageAgg {
@@ -131,6 +133,7 @@ export function renderSessionUsageSummary(
   }
   desc.textContent = bits.join(" — ");
   el.appendChild(desc);
+  scrollTimelineToBottomIfFollowing();
 }
 
 export function clearSessionUsageSummary(): void {

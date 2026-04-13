@@ -1,3 +1,5 @@
+import { ensureTimelineScrollFollowListener } from "./shared.js";
+
 export type Think2PageVariant = "live" | "demo";
 
 const SHARED_TOP = `
@@ -171,4 +173,5 @@ export function mountThink2Page(
   const prefix =
     variant === "demo" ? `${SHARED_TOP}${DEMO_CALLOUT}` : SHARED_TOP;
   main.innerHTML = `${prefix}${SETUP_HEAD}${brief}${SETUP_TAIL}`;
+  ensureTimelineScrollFollowListener();
 }
