@@ -1,6 +1,5 @@
-import type { ParsedUsage } from "./openrouter-usage.js";
-
-export const SHARE_HASH_PREFIX = "v1.";
+/** Marks a share payload in the URL fragment (UTF-8 JSON → base64url). */
+export const SHARE_HASH_PREFIX = "v2.";
 
 export const SHARE_ROUND_IDS = [
   "r1",
@@ -18,31 +17,36 @@ export type ShareRoundId = (typeof SHARE_ROUND_IDS)[number];
 
 const MODEL_ID_RE = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i;
 
-/** Max compressed payload (base64-decoded) before gunzip. */
-const MAX_COMPRESSED_BYTES = 512 * 1024;
-
-/** Max UTF-8 length of decompressed JSON string. */
 const MAX_JSON_CHARS = 512 * 1024;
+const MAX_B64_DECODED_BYTES = 768 * 1024;
 
-export interface ShareUsageStepV1 {
-  id: string;
-  model: string;
-  usage: ParsedUsage;
-}
-
-export interface SharePayloadV1 {
-  v: 1;
+export interface SharePayload {
   brief: string;
-  strategist: string;
-  critic: string;
-  synthesizer: string;
+  planner: string;
+  challenger: string;
+  resolver: string;
   rounds: Record<string, string>;
-  usageSteps?: readonly ShareUsageStepV1[];
-  /** Present when the link was created from the offline demo page. */
   source?: "demo";
 }
 
+type Base64Alphabet = "base64" | "base64url";
+
+interface Uint8ArrayToBase64 {
+  toBase64?(options?: { alphabet?: Base64Alphabet }): string;
+}
+
+interface Uint8ArrayConstructorFromBase64 {
+  fromBase64?(
+    data: string,
+    options?: { alphabet?: Base64Alphabet },
+  ): Uint8Array;
+}
+
 function bytesToBase64Url(bytes: Uint8Array): string {
+  const toB64 = (bytes as Uint8Array & Uint8ArrayToBase64).toBase64;
+  if (typeof toB64 === "function") {
+    return toB64.call(bytes, { alphabet: "base64url" });
+  }
   let bin = "";
   for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]!);
   const b64 = btoa(bin);
@@ -50,6 +54,14 @@ function bytesToBase64Url(bytes: Uint8Array): string {
 }
 
 function base64UrlToBytes(b64url: string): Uint8Array {
+  const FromB64 = Uint8Array as unknown as Uint8ArrayConstructorFromBase64;
+  if (typeof FromB64.fromBase64 === "function") {
+    try {
+      return FromB64.fromBase64(b64url, { alphabet: "base64url" });
+    } catch {
+      /* fall through to atob path */
+    }
+  }
   let b64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
   const pad = b64.length % 4;
   if (pad === 2) b64 += "==";
@@ -61,97 +73,48 @@ function base64UrlToBytes(b64url: string): Uint8Array {
   return out;
 }
 
-async function gzipBytes(data: Uint8Array): Promise<Uint8Array> {
-  const cs = new CompressionStream("gzip");
-  const writer = cs.writable.getWriter();
-  await writer.write(new Uint8Array(data));
-  await writer.close();
-  const buf = await new Response(cs.readable).arrayBuffer();
-  return new Uint8Array(buf);
-}
-
-async function gunzipBytes(data: Uint8Array): Promise<Uint8Array> {
-  const ds = new DecompressionStream("gzip");
-  const writer = ds.writable.getWriter();
-  await writer.write(new Uint8Array(data));
-  await writer.close();
-  const buf = await new Response(ds.readable).arrayBuffer();
-  return new Uint8Array(buf);
-}
-
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null && !Array.isArray(x);
 }
 
-function isParsedUsage(o: unknown): o is ParsedUsage {
-  if (!isRecord(o)) return false;
-  const n = (x: unknown): boolean =>
-    x === null || (typeof x === "number" && Number.isFinite(x));
-  return (
-    n(o.prompt) && n(o.completion) && n(o.total) && n(o.cost)
-  );
-}
-
-function isUsageStep(x: unknown): x is ShareUsageStepV1 {
-  if (!isRecord(x)) return false;
-  if (typeof x.id !== "string" || typeof x.model !== "string") return false;
-  return isParsedUsage(x.usage);
-}
-
-export function parseSharePayloadV1(raw: unknown): SharePayloadV1 | null {
+export function parseSharePayload(raw: unknown): SharePayload | null {
   if (!isRecord(raw)) return null;
-  if (raw.v !== 1) return null;
   if (typeof raw.brief !== "string") return null;
-  if (typeof raw.strategist !== "string" || !MODEL_ID_RE.test(raw.strategist))
+  if (typeof raw.planner !== "string" || !MODEL_ID_RE.test(raw.planner))
     return null;
-  if (typeof raw.critic !== "string" || !MODEL_ID_RE.test(raw.critic))
+  if (typeof raw.challenger !== "string" || !MODEL_ID_RE.test(raw.challenger))
     return null;
-  if (
-    typeof raw.synthesizer !== "string" ||
-    !MODEL_ID_RE.test(raw.synthesizer)
-  )
+  if (typeof raw.resolver !== "string" || !MODEL_ID_RE.test(raw.resolver))
     return null;
   if (!isRecord(raw.rounds)) return null;
   for (const id of SHARE_ROUND_IDS) {
     const t = raw.rounds[id];
     if (typeof t !== "string" || t.trim().length === 0) return null;
   }
-  let usageSteps: ShareUsageStepV1[] | undefined;
-  if (raw.usageSteps !== undefined) {
-    if (!Array.isArray(raw.usageSteps)) return null;
-    const steps: ShareUsageStepV1[] = [];
-    for (const item of raw.usageSteps) {
-      if (!isUsageStep(item)) return null;
-      steps.push(item);
-    }
-    usageSteps = steps;
-  }
   let source: "demo" | undefined;
   if (raw.source !== undefined) {
     if (raw.source !== "demo") return null;
     source = "demo";
   }
-  return {
-    v: 1,
+  const out: SharePayload = {
     brief: raw.brief,
-    strategist: raw.strategist,
-    critic: raw.critic,
-    synthesizer: raw.synthesizer,
+    planner: raw.planner,
+    challenger: raw.challenger,
+    resolver: raw.resolver,
     rounds: raw.rounds as Record<string, string>,
-    usageSteps,
-    source,
   };
+  if (source) out.source = source;
+  return out;
 }
 
-export function buildSharePayloadV1(input: {
+export function buildSharePayload(input: {
   brief: string;
-  strategist: string;
-  critic: string;
-  synthesizer: string;
+  planner: string;
+  challenger: string;
+  resolver: string;
   rounds: Record<string, string>;
-  usageSteps?: readonly ShareUsageStepV1[];
   source?: "demo";
-}): SharePayloadV1 {
+}): SharePayload {
   const rounds: Record<string, string> = {};
   for (const id of SHARE_ROUND_IDS) {
     const t = input.rounds[id];
@@ -163,67 +126,47 @@ export function buildSharePayloadV1(input: {
     }
     rounds[id] = t;
   }
-  const payload: SharePayloadV1 = {
-    v: 1,
+  const payload: SharePayload = {
     brief: input.brief,
-    strategist: input.strategist,
-    critic: input.critic,
-    synthesizer: input.synthesizer,
+    planner: input.planner,
+    challenger: input.challenger,
+    resolver: input.resolver,
     rounds,
   };
-  if (input.usageSteps && input.usageSteps.length > 0) {
-    payload.usageSteps = [...input.usageSteps];
-  }
   if (input.source === "demo") {
     payload.source = "demo";
   }
   return payload;
 }
 
-export function isShareCompressionSupported(): boolean {
-  return (
-    typeof globalThis.CompressionStream === "function" &&
-    typeof globalThis.DecompressionStream === "function"
-  );
-}
-
-export async function encodeShareHash(payload: SharePayloadV1): Promise<string> {
-  if (!isShareCompressionSupported()) {
-    throw new Error(
-      "This browser does not support CompressionStream (needed to shrink the link). Try an up-to-date Chrome, Firefox, Edge, or Safari.",
-    );
-  }
-  const json = JSON.stringify(payload);
+export function encodeShareHashFromJson(json: string): string {
   if (json.length > MAX_JSON_CHARS) {
     throw new Error("Session is too large to share in a URL.");
   }
   const encoded = new TextEncoder().encode(json);
-  const gz = await gzipBytes(encoded);
-  return `${SHARE_HASH_PREFIX}${bytesToBase64Url(gz)}`;
+  return `${SHARE_HASH_PREFIX}${bytesToBase64Url(encoded)}`;
 }
 
-export async function decodeSharePayloadFromHash(
+export function encodeShareHash(payload: SharePayload): string {
+  return encodeShareHashFromJson(JSON.stringify(payload));
+}
+
+export function decodeSharePayloadFromHash(
   hashWithoutPound: string,
-): Promise<SharePayloadV1 | null> {
+): SharePayload | null {
   try {
     const trimmed = hashWithoutPound.trim();
     if (!trimmed.startsWith(SHARE_HASH_PREFIX)) return null;
     const b64part = trimmed.slice(SHARE_HASH_PREFIX.length);
     if (b64part.length === 0) return null;
-    let compressed: Uint8Array;
+    let bytes: Uint8Array;
     try {
-      compressed = base64UrlToBytes(b64part);
+      bytes = base64UrlToBytes(b64part);
     } catch {
       return null;
     }
-    if (compressed.length > MAX_COMPRESSED_BYTES) return null;
-    let jsonBytes: Uint8Array;
-    try {
-      jsonBytes = await gunzipBytes(compressed);
-    } catch {
-      return null;
-    }
-    const text = new TextDecoder("utf-8", { fatal: true }).decode(jsonBytes);
+    if (bytes.length > MAX_B64_DECODED_BYTES) return null;
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     if (text.length > MAX_JSON_CHARS) return null;
     let parsed: unknown;
     try {
@@ -231,7 +174,7 @@ export async function decodeSharePayloadFromHash(
     } catch {
       return null;
     }
-    return parseSharePayloadV1(parsed);
+    return parseSharePayload(parsed);
   } catch {
     return null;
   }

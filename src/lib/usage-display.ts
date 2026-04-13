@@ -1,5 +1,12 @@
 import type { ParsedUsage } from "./openrouter-usage.js";
 
+/** Per-round usage captured during a live or demo run (not part of share URL JSON). */
+export interface SessionUsageStep {
+  id: string;
+  model: string;
+  usage: ParsedUsage;
+}
+
 const usageMoneyFmt = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -89,10 +96,8 @@ export function addUsageToSessionAgg(agg: SessionUsageAgg, u: ParsedUsage): void
 }
 
 export interface SessionUsageSummaryOptions {
-  /** e.g. "Session (OpenRouter)" or "Session (demo — illustrative)" */
+  /** e.g. "Session" */
   sessionTitle: string;
-  /** Shown below the totals line (e.g. demo disclaimer). */
-  footnote?: string;
 }
 
 export function renderSessionUsageSummary(
@@ -126,14 +131,6 @@ export function renderSessionUsageSummary(
   }
   desc.textContent = bits.join(" — ");
   el.appendChild(desc);
-  if (options.footnote) {
-    const note = document.createElement("p");
-    note.style.margin = "8px 0 0";
-    note.style.fontSize = "0.75rem";
-    note.style.color = "var(--muted)";
-    note.textContent = options.footnote;
-    el.appendChild(note);
-  }
 }
 
 export function clearSessionUsageSummary(): void {

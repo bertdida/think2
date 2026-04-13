@@ -2,7 +2,12 @@ export type Think2PageVariant = "live" | "demo";
 
 const SHARED_TOP = `
       <div id="shareLoadError" class="share-load-error" role="alert" hidden></div>
-      <div id="shareViewBanner" class="share-view-banner" hidden>
+      <div
+        id="shareViewBanner"
+        class="share-view-banner think2-info-card"
+        role="status"
+        hidden
+      >
         <p>
           <strong>Shared session.</strong> This page shows a saved result only.
           Your OpenRouter key is not used here.
@@ -11,11 +16,13 @@ const SHARED_TOP = `
 `;
 
 const DEMO_CALLOUT = `
-      <p class="demo-callout" role="note" id="demoCallout">
-        You are on the <strong>demo</strong> page: one sample situation and
-        canned planner–challenger–resolver text. Nothing is sent to OpenRouter
-        or anywhere else from this page.
-      </p>
+      <div class="demo-callout think2-info-card" role="status" id="demoCallout">
+        <p>
+          You're in demo mode. The responses below are pre-written examples —
+          nothing is sent anywhere. Want to try your own situation?
+          <a href="index.html">Use live app →</a>
+        </p>
+      </div>
 `;
 
 const SETUP_HEAD = `
@@ -141,10 +148,12 @@ const SETUP_TAIL = `
       </section>
 
       <div id="sessionDoneActions" class="session-done-actions" hidden>
-        <button type="button" class="btn-share" id="btnShareLink">
+        <button type="button" class="btn-share" id="btnShareLink" disabled>
           Copy share link
         </button>
-        <button class="btn-reset" id="btnReset" type="button">New session</button>
+        <button class="btn-reset" id="btnReset" type="button" disabled>
+          New session
+        </button>
       </div>
       <p class="share-link-hint" id="shareLinkHint" hidden>
         Anyone with the link can read your situation and every model reply.

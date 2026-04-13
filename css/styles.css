@@ -34,6 +34,10 @@
   --error-border: #e8c4c4;
   --error-text: #991b1b;
   --error-inline: #b91c1c;
+  --demo-info-bg: #eff6ff;
+  --demo-info-border: #93c5fd;
+  --demo-info-text: #1e3a8a;
+  --demo-info-link: #1d4ed8;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -67,6 +71,10 @@
     --error-border: #7f1d1d;
     --error-text: #fca5a5;
     --error-inline: #f87171;
+    --demo-info-bg: #172554;
+    --demo-info-border: #3b82f6;
+    --demo-info-text: #bfdbfe;
+    --demo-info-link: #93c5fd;
   }
 
   .field select {
@@ -152,6 +160,18 @@ body {
 
 .header-github:focus-visible {
   box-shadow: var(--focus-shadow-strong);
+}
+
+.header-external {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.header-external-icon {
+  flex-shrink: 0;
+  margin-top: 0.05em;
+  opacity: 0.88;
 }
 
 .container {
@@ -628,6 +648,11 @@ body {
   padding: 0 var(--content-pad-x);
 }
 
+.session-done-actions[hidden],
+.share-link-hint[hidden] {
+  display: none !important;
+}
+
 .btn-reset,
 .btn-share {
   padding: 10px 20px;
@@ -648,6 +673,11 @@ body {
 .btn-share:hover {
   background: var(--bg);
   border-color: var(--outline-hover-border);
+}
+
+.btn-share[aria-busy="true"] {
+  cursor: wait;
+  opacity: 0.88;
 }
 
 .btn-share:focus,
@@ -674,13 +704,31 @@ body {
 .share-view-banner {
   max-width: var(--content-max);
   margin: 0 auto 20px;
-  padding: 14px 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 2px;
+}
+
+.think2-info-card {
   font-size: 0.8125rem;
-  line-height: 1.5;
-  color: var(--text);
+  color: var(--demo-info-text);
+  line-height: 1.55;
+  padding: 12px 14px;
+  border: 1px solid var(--demo-info-border);
+  border-radius: 2px;
+  background: var(--demo-info-bg);
+}
+
+.think2-info-card > p {
+  margin: 0;
+}
+
+.think2-info-card a {
+  color: var(--demo-info-link);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.think2-info-card a:hover {
+  color: var(--demo-info-text);
 }
 
 .share-load-error {
@@ -752,14 +800,7 @@ body {
 }
 
 .demo-callout {
-  font-size: 0.8125rem;
-  color: var(--muted);
-  line-height: 1.55;
   margin: 0 0 1.25rem;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 2px;
-  background: var(--surface);
 }
 
 .field textarea[readonly] {

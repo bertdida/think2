@@ -5,13 +5,12 @@ import type { RoundDef } from "./debate-rounds.js";
 import { ROUNDS } from "./debate-rounds.js";
 import { setupModelSelects } from "./model-selects.js";
 import { loadSharePayloadFromLocation } from "./share-bootstrap.js";
+import { startShareCopyLoading } from "./share-copy-ui.js";
+import { buildSharePayload, type SharePayload } from "./share-payload.js";
 import {
-  buildSharePayloadV1,
-  encodeShareHash,
-  shareUrlWithHash,
-  type SharePayloadV1,
-  type ShareUsageStepV1,
-} from "./share-payload.js";
+  primeShareUrlCache,
+  resolveShareUrlForClipboard,
+} from "./share-url-cache.js";
 import {
   hideSessionDoneChrome,
   showSessionDoneChrome,
@@ -25,6 +24,7 @@ import {
   mountRoundUsageFooter,
   renderSessionUsageSummary,
   type SessionUsageAgg,
+  type SessionUsageStep,
 } from "./usage-display.js";
 
 const OPENROUTER_ORIGIN = "https://openrouter.ai";
@@ -46,7 +46,7 @@ const SAMPLE_BRIEFS = [
 const MODEL_ID_RE = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i;
 
 let history: Record<string, string> = {};
-let sessionUsageSteps: ShareUsageStepV1[] = [];
+let sessionUsageSteps: SessionUsageStep[] = [];
 const models: Record<ModelKey, string> = {
   strategist: "",
   critic: "",
@@ -327,6 +327,7 @@ async function startDebate(): Promise<void> {
   const timeline = document.getElementById("timeline");
   if (timeline) timeline.innerHTML = "";
   clearSessionUsageSummary();
+  hideSessionDoneChrome();
   history = {};
   sessionUsageSteps = [];
   const sessionUsageAgg = createEmptySessionUsageAgg();
@@ -341,10 +342,19 @@ async function startDebate(): Promise<void> {
       if (!ok) return;
     }
     renderSessionUsageSummary(sessionUsageAgg, {
-      sessionTitle: "Session (OpenRouter)",
+      sessionTitle: "Session",
     });
     completed = true;
     showSessionDoneChrome();
+    try {
+      primeShareUrlCache(
+        buildLiveSharePayload(),
+        location.origin,
+        location.pathname,
+      );
+    } catch {
+      /* copy will encode on demand */
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     showError(message);
@@ -395,6 +405,22 @@ const API_KEY_TOGGLE_SVG = {
   eyeOff: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>`,
 };
 
+/** Share URLs omit token usage (smaller/faster; only brief, models, and round text). */
+function buildLiveSharePayload(): SharePayload {
+  const briefEl = document.getElementById("brief");
+  if (!(briefEl instanceof HTMLTextAreaElement)) {
+    throw new Error("Missing #brief");
+  }
+  const ids = readLiveModelIdsFromDom();
+  return buildSharePayload({
+    brief: briefEl.value.trim(),
+    planner: ids.strategist,
+    challenger: ids.critic,
+    resolver: ids.synthesizer,
+    rounds: history,
+  });
+}
+
 function readLiveModelIdsFromDom(): {
   strategist: string;
   critic: string;
@@ -440,22 +466,20 @@ async function copyShareLinkFromSession(): Promise<void> {
   const btnShareLink = document.getElementById("btnShareLink");
   if (!(briefEl instanceof HTMLTextAreaElement)) return;
   if (!(btnShareLink instanceof HTMLButtonElement)) return;
+  if (btnShareLink.disabled) return;
+
+  const ui = startShareCopyLoading(btnShareLink);
   try {
-    const ids = readLiveModelIdsFromDom();
-    const payload = buildSharePayloadV1({
-      brief: briefEl.value.trim(),
-      strategist: ids.strategist,
-      critic: ids.critic,
-      synthesizer: ids.synthesizer,
-      rounds: history,
-      usageSteps: sessionUsageSteps,
-    });
-    const hash = await encodeShareHash(payload);
-    const url = shareUrlWithHash(location.origin, location.pathname, hash);
+    const url = resolveShareUrlForClipboard(
+      buildLiveSharePayload(),
+      location.origin,
+      location.pathname,
+    );
     try {
       await navigator.clipboard.writeText(url);
     } catch {
       window.prompt("Copy this link:", url);
+      ui.cancelLoading();
       return;
     }
     try {
@@ -465,23 +489,20 @@ async function copyShareLinkFromSession(): Promise<void> {
         "Link copied to clipboard, but the address bar could not be updated (URL may be too long for this browser).",
       );
     }
-    const prev = btnShareLink.textContent;
-    btnShareLink.textContent = "Copied";
-    window.setTimeout(() => {
-      btnShareLink.textContent = prev;
-    }, 2000);
+    ui.showCopiedThenReset();
   } catch (err) {
+    ui.cancelLoading();
     const message = err instanceof Error ? err.message : String(err);
     showError(message);
   }
 }
 
-function wireLiveShareViewer(payload: SharePayloadV1): void {
+function wireLiveShareViewer(payload: SharePayload): void {
   wireShareViewer(payload, {
     models,
-    applyPayloadToSessionState: (rounds, steps) => {
+    applyPayloadToSessionState: (rounds) => {
       history = { ...rounds };
-      sessionUsageSteps = steps ? [...steps] : [];
+      sessionUsageSteps = [];
     },
   });
 }
@@ -513,6 +534,8 @@ function wireApp(): void {
     throw new Error("Missing #btnApiKeyToggle");
   }
 
+  hideSessionDoneChrome();
+
   btnStart.addEventListener("click", () => void startDebate());
   btnReset.addEventListener("click", resetSession);
   btnShareLink.addEventListener("click", () => void copyShareLinkFromSession());
@@ -541,11 +564,21 @@ function wireApp(): void {
   setupModelSelects();
 }
 
-async function init(): Promise<void> {
-  const loaded = await loadSharePayloadFromLocation();
+function isDemoHtmlPage(): boolean {
+  return /\/demo\.html$/i.test(window.location.pathname);
+}
+
+function init(): void {
+  const loaded = loadSharePayloadFromLocation();
   if (loaded === "invalid") {
     showShareDecodeError();
   } else if (loaded) {
+    if (loaded.source === "demo" && !isDemoHtmlPage()) {
+      const next = new URL("demo.html", window.location.href);
+      next.hash = window.location.hash;
+      window.location.replace(next.href);
+      return;
+    }
     wireLiveShareViewer(loaded);
     return;
   }
@@ -553,7 +586,9 @@ async function init(): Promise<void> {
 }
 
 export function bootstrapLiveApp(): void {
-  void init().catch((err) => {
+  try {
+    init();
+  } catch (err) {
     console.error(err);
     const el = document.getElementById("errorMsg");
     if (el) {
@@ -563,5 +598,5 @@ export function bootstrapLiveApp(): void {
           : "Something went wrong while starting the app.";
       el.style.display = "block";
     }
-  });
+  }
 }

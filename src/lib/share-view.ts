@@ -3,21 +3,32 @@ import type { ModelKey } from "./debate-rounds.js";
 import { ROUNDS } from "./debate-rounds.js";
 import { ensureSelectHasValue, setupModelSelects } from "./model-selects.js";
 import { parseOpenRouterUsage } from "./openrouter-usage.js";
-import type { SharePayloadV1, ShareUsageStepV1 } from "./share-payload.js";
+import type { SharePayload } from "./share-payload.js";
 import { shareUrlWithHash } from "./share-payload.js";
 import {
-  addUsageToSessionAgg,
+  resetShareCopyButton,
+  startShareCopyLoading,
+} from "./share-copy-ui.js";
+import { clearShareUrlCache } from "./share-url-cache.js";
+import {
   clearSessionUsageSummary,
-  createEmptySessionUsageAgg,
   mountRoundUsageFooter,
-  renderSessionUsageSummary,
 } from "./usage-display.js";
 
 export function showSessionDoneChrome(): void {
   const wrap = document.getElementById("sessionDoneActions");
   const hint = document.getElementById("shareLinkHint");
+  const btnShareLink = document.getElementById("btnShareLink");
   if (wrap) wrap.removeAttribute("hidden");
   if (hint) hint.removeAttribute("hidden");
+  if (btnShareLink instanceof HTMLButtonElement) {
+    resetShareCopyButton(btnShareLink);
+    btnShareLink.disabled = false;
+  }
+  const btnReset = document.getElementById("btnReset");
+  if (btnReset instanceof HTMLButtonElement) {
+    btnReset.disabled = false;
+  }
 }
 
 export function hideSessionDoneChrome(): void {
@@ -25,6 +36,16 @@ export function hideSessionDoneChrome(): void {
   const hint = document.getElementById("shareLinkHint");
   if (wrap) wrap.setAttribute("hidden", "");
   if (hint) hint.setAttribute("hidden", "");
+  const btnShareLink = document.getElementById("btnShareLink");
+  if (btnShareLink instanceof HTMLButtonElement) {
+    resetShareCopyButton(btnShareLink);
+    btnShareLink.disabled = true;
+  }
+  const btnReset = document.getElementById("btnReset");
+  if (btnReset instanceof HTMLButtonElement) {
+    btnReset.disabled = true;
+  }
+  clearShareUrlCache();
 }
 
 export function showShareDecodeError(): void {
@@ -43,23 +64,20 @@ export function startYourOwn(): void {
 
 export interface ShareViewerSessionSink {
   models: Record<ModelKey, string>;
-  applyPayloadToSessionState: (
-    rounds: Record<string, string>,
-    usageSteps: readonly ShareUsageStepV1[] | undefined,
-  ) => void;
+  applyPayloadToSessionState: (rounds: Record<string, string>) => void;
 }
 
 export function renderSessionFromSnapshot(
-  payload: SharePayloadV1,
+  payload: SharePayload,
   models: Record<ModelKey, string>,
 ): void {
   const timeline = document.getElementById("timeline");
   if (timeline) timeline.innerHTML = "";
   clearSessionUsageSummary();
 
-  models.strategist = payload.strategist;
-  models.critic = payload.critic;
-  models.synthesizer = payload.synthesizer;
+  models.strategist = payload.planner;
+  models.critic = payload.challenger;
+  models.synthesizer = payload.resolver;
 
   for (const round of ROUNDS) {
     const { card, contentEl, typingEl } = appendRoundCard({
@@ -72,33 +90,12 @@ export function renderSessionFromSnapshot(
     const text = payload.rounds[round.id] ?? "";
     contentEl.innerHTML = `<span class="stream-text">${escapeHtml(text)}</span>`;
     const model = models[round.modelKey];
-    const step = payload.usageSteps?.find((s) => s.id === round.id);
-    mountRoundUsageFooter(
-      card,
-      model,
-      step?.usage ?? parseOpenRouterUsage(null),
-    );
-  }
-
-  if (payload.usageSteps && payload.usageSteps.length > 0) {
-    const agg = createEmptySessionUsageAgg();
-    for (const s of payload.usageSteps) {
-      addUsageToSessionAgg(agg, s.usage);
-    }
-    const isDemo = payload.source === "demo";
-    renderSessionUsageSummary(agg, {
-      sessionTitle: isDemo
-        ? "Session (demo — illustrative)"
-        : "Session (OpenRouter)",
-      footnote: isDemo
-        ? "Totals are placeholders; the demo page does not call OpenRouter."
-        : undefined,
-    });
+    mountRoundUsageFooter(card, model, parseOpenRouterUsage(null));
   }
 }
 
 export function wireShareViewer(
-  payload: SharePayloadV1,
+  payload: SharePayload,
   sink: ShareViewerSessionSink,
 ): void {
   const banner = document.getElementById("shareViewBanner");
@@ -120,9 +117,9 @@ export function wireShareViewer(
   ) {
     throw new Error("Missing form controls for share view.");
   }
-  ensureSelectHasValue(strategistEl, payload.strategist);
-  ensureSelectHasValue(criticEl, payload.critic);
-  ensureSelectHasValue(synthesizerEl, payload.synthesizer);
+  ensureSelectHasValue(strategistEl, payload.planner);
+  ensureSelectHasValue(criticEl, payload.challenger);
+  ensureSelectHasValue(synthesizerEl, payload.resolver);
   briefEl.value = payload.brief;
   briefEl.readOnly = true;
   strategistEl.disabled = true;
@@ -146,7 +143,7 @@ export function wireShareViewer(
   if (btnApiKeyToggle instanceof HTMLButtonElement)
     btnApiKeyToggle.disabled = true;
 
-  sink.applyPayloadToSessionState(payload.rounds, payload.usageSteps);
+  sink.applyPayloadToSessionState(payload.rounds);
 
   renderSessionFromSnapshot(payload, sink.models);
 
@@ -162,22 +159,26 @@ export function wireShareViewer(
   }
   btnReset.addEventListener("click", startYourOwn);
   btnShareLink.addEventListener("click", async () => {
-    const hashPart = window.location.hash.replace(/^#/, "");
-    const url = shareUrlWithHash(
-      window.location.origin,
-      window.location.pathname,
-      hashPart,
-    );
+    if (btnShareLink.disabled) return;
+    const ui = startShareCopyLoading(btnShareLink);
     try {
-      await navigator.clipboard.writeText(url);
+      const hashPart = window.location.hash.replace(/^#/, "");
+      const url = shareUrlWithHash(
+        window.location.origin,
+        window.location.pathname,
+        hashPart,
+      );
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch {
+        window.prompt("Copy this link:", url);
+        ui.cancelLoading();
+        return;
+      }
+      ui.showCopiedThenReset();
     } catch {
-      window.prompt("Copy this link:", url);
+      ui.cancelLoading();
     }
-    const prev = btnShareLink.textContent;
-    btnShareLink.textContent = "Copied";
-    window.setTimeout(() => {
-      btnShareLink.textContent = prev;
-    }, 2000);
   });
 
   window.scrollTo({ top: 0, behavior: "auto" });

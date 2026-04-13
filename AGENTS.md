@@ -37,10 +37,11 @@ Each HTML file keeps **only** `<main id="main"></main>` for the interactive regi
 | [`model-selects.ts`](src/lib/model-selects.ts) | Model preset list, `fillSelect` / `setupModelSelects`, `fillSelectDisabled` (demo) |
 | [`shared.ts`](src/lib/shared.ts) | DOM helpers: `appendRoundCard`, stream renderer, `escapeHtml` |
 | [`openrouter-usage.ts`](src/lib/openrouter-usage.ts) | Parse OpenRouter usage objects |
-| [`usage-display.ts`](src/lib/usage-display.ts) | Per-card usage footer + session totals block |
-| [`share-payload.ts`](src/lib/share-payload.ts) | Share URL payload encode/decode (gzip + base64url in hash) |
+| [`usage-display.ts`](src/lib/usage-display.ts) | Per-card usage footer, session totals, `SessionUsageStep` for live/demo runs (not in share JSON) |
+| [`share-payload.ts`](src/lib/share-payload.ts) | `SharePayload` in URL: `v2.` prefix + UTF-8 JSON base64url; brief, planner/challenger/resolver, rounds, optional `source: "demo"` |
 | [`share-view.ts`](src/lib/share-view.ts) | Read-only share viewer UI, `wireShareViewer`, session “done” chrome |
-| [`share-bootstrap.ts`](src/lib/share-bootstrap.ts) | `loadSharePayloadFromLocation()` for `#v1.` hashes |
+| [`share-bootstrap.ts`](src/lib/share-bootstrap.ts) | `loadSharePayloadFromLocation()` for `#v2.` share hashes |
+| [`share-url-cache.ts`](src/lib/share-url-cache.ts) | Primes sync v2 share URL after a session so Copy can reuse the encoded hash |
 
 ## Styling
 
@@ -49,7 +50,6 @@ Each HTML file keeps **only** `<main id="main"></main>` for the interactive regi
 ## Tests
 
 - Colocated: `*.test.ts` next to implementation (e.g. [`share-payload.test.ts`](src/lib/share-payload.test.ts)).
-- Gzip roundtrip tests skip when `CompressionStream` is unavailable.
 
 ## Conventions
 

@@ -3,14 +3,12 @@ import type { ModelKey } from "./debate-rounds.js";
 import { fillSelectDisabled } from "./model-selects.js";
 import type { ParsedUsage } from "./openrouter-usage.js";
 import { loadSharePayloadFromLocation } from "./share-bootstrap.js";
+import { startShareCopyLoading } from "./share-copy-ui.js";
+import { buildSharePayload, type SharePayload } from "./share-payload.js";
 import {
-  buildSharePayloadV1,
-  encodeShareHash,
-  isShareCompressionSupported,
-  shareUrlWithHash,
-  type SharePayloadV1,
-  type ShareUsageStepV1,
-} from "./share-payload.js";
+  primeShareUrlCache,
+  resolveShareUrlForClipboard,
+} from "./share-url-cache.js";
 import {
   hideSessionDoneChrome,
   showSessionDoneChrome,
@@ -23,6 +21,7 @@ import {
   createEmptySessionUsageAgg,
   mountRoundUsageFooter,
   renderSessionUsageSummary,
+  type SessionUsageStep,
 } from "./usage-display.js";
 
 const DEMO_BRIEF =
@@ -148,7 +147,7 @@ const DEMO_ROUNDS: DemoRoundStep[] = [
 
 let demoBusy = false;
 let demoHistory: Record<string, string> = {};
-let demoUsageSteps: ShareUsageStepV1[] = [];
+let demoUsageSteps: SessionUsageStep[] = [];
 const demoModels: Record<ModelKey, string> = {
   strategist: "",
   critic: "",
@@ -307,11 +306,18 @@ async function startDemo(): Promise<void> {
       await sleep(200);
     }
     renderSessionUsageSummary(sessionUsageAgg, {
-      sessionTitle: "Session (demo — illustrative)",
-      footnote:
-        "Totals are placeholders for layout parity; this page does not call OpenRouter.",
+      sessionTitle: "Session",
     });
     showSessionDoneChrome();
+    try {
+      primeShareUrlCache(
+        buildDemoSharePayload(),
+        location.origin,
+        location.pathname,
+      );
+    } catch {
+      /* copy will encode on demand */
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     showError(message);
@@ -342,34 +348,42 @@ function resetDemo(): void {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+/** Share URLs omit token usage (smaller/faster; only brief, models, and round text). */
+function buildDemoSharePayload(): SharePayload {
+  const briefEl = document.getElementById("brief");
+  if (!(briefEl instanceof HTMLTextAreaElement)) {
+    throw new Error("Missing #brief");
+  }
+  readDemoModelsFromDom();
+  return buildSharePayload({
+    brief: briefEl.value.trim(),
+    planner: demoModels.strategist,
+    challenger: demoModels.critic,
+    resolver: demoModels.synthesizer,
+    rounds: demoHistory,
+    source: "demo",
+  });
+}
+
 async function copyDemoShareLink(): Promise<void> {
   const briefEl = document.getElementById("brief");
   const btnShareLink = document.getElementById("btnShareLink");
   if (!(briefEl instanceof HTMLTextAreaElement)) return;
   if (!(btnShareLink instanceof HTMLButtonElement)) return;
-  readDemoModelsFromDom();
-  if (!isShareCompressionSupported()) {
-    showError(
-      "This browser does not support CompressionStream (needed to shrink the link). Try an up-to-date Chrome, Firefox, Edge, or Safari.",
-    );
-    return;
-  }
+  if (btnShareLink.disabled) return;
+
+  const ui = startShareCopyLoading(btnShareLink);
   try {
-    const payload = buildSharePayloadV1({
-      brief: briefEl.value.trim(),
-      strategist: demoModels.strategist,
-      critic: demoModels.critic,
-      synthesizer: demoModels.synthesizer,
-      rounds: demoHistory,
-      usageSteps: demoUsageSteps,
-      source: "demo",
-    });
-    const hash = await encodeShareHash(payload);
-    const url = shareUrlWithHash(location.origin, location.pathname, hash);
+    const url = resolveShareUrlForClipboard(
+      buildDemoSharePayload(),
+      location.origin,
+      location.pathname,
+    );
     try {
       await navigator.clipboard.writeText(url);
     } catch {
       window.prompt("Copy this link:", url);
+      ui.cancelLoading();
       return;
     }
     try {
@@ -379,29 +393,27 @@ async function copyDemoShareLink(): Promise<void> {
         "Link copied to clipboard, but the address bar could not be updated (URL may be too long for this browser).",
       );
     }
-    const prev = btnShareLink.textContent;
-    btnShareLink.textContent = "Copied";
-    window.setTimeout(() => {
-      btnShareLink.textContent = prev;
-    }, 2000);
+    ui.showCopiedThenReset();
   } catch (err) {
+    ui.cancelLoading();
     const message = err instanceof Error ? err.message : String(err);
     showError(message);
   }
 }
 
-function wireDemoShareViewer(payload: SharePayloadV1): void {
+function wireDemoShareViewer(payload: SharePayload): void {
   wireShareViewer(payload, {
     models: demoModels,
-    applyPayloadToSessionState: (rounds, steps) => {
+    applyPayloadToSessionState: (rounds) => {
       demoHistory = { ...rounds };
-      demoUsageSteps = steps ? [...steps] : [];
+      demoUsageSteps = [];
     },
   });
 }
 
 function wireDemo(): void {
   setupDemoForm();
+  hideSessionDoneChrome();
 
   const btnApiKeyToggle = document.getElementById("btnApiKeyToggle");
   const btnStart = document.getElementById("btnStart");
@@ -433,9 +445,9 @@ function wireDemo(): void {
   btnShareLink.addEventListener("click", () => void copyDemoShareLink());
 }
 
-export async function bootstrapDemoApp(): Promise<void> {
+export function bootstrapDemoApp(): void {
   try {
-    const loaded = await loadSharePayloadFromLocation();
+    const loaded = loadSharePayloadFromLocation();
     if (loaded === "invalid") {
       showShareDecodeError();
     } else if (loaded) {
