@@ -795,8 +795,8 @@
               <button type="button" class="brief-action" id="btnBriefClear">
                 Clear
               </button>
-              <button type="button" class="brief-action" id="btnBriefRandom">
-                Random brief
+              <button type="button" class="brief-action" id="btnBriefNext">
+                Next sample brief
               </button>
             </div>
           </div>
@@ -1191,19 +1191,13 @@
         return gap <= SCROLL_BOTTOM_TOLERANCE_PX;
       }
 
-      function pickRandomBrief() {
+      function pickNextBrief() {
+        if (SAMPLE_BRIEFS.length === 0) return "";
         const ta = document.getElementById("brief");
         const current = ta ? ta.value : "";
-        if (SAMPLE_BRIEFS.length === 0) return "";
-        let next = SAMPLE_BRIEFS[0];
-        for (let i = 0; i < 8; i++) {
-          next =
-            SAMPLE_BRIEFS[
-              Math.floor(Math.random() * SAMPLE_BRIEFS.length)
-            ];
-          if (next !== current || SAMPLE_BRIEFS.length === 1) break;
-        }
-        return next;
+        const idx = SAMPLE_BRIEFS.indexOf(current);
+        const nextIdx = idx === -1 ? 0 : (idx + 1) % SAMPLE_BRIEFS.length;
+        return SAMPLE_BRIEFS[nextIdx];
       }
 
       function createStreamRenderer(contentEl) {
@@ -1609,9 +1603,9 @@
       document.getElementById("btnBriefClear").addEventListener("click", () => {
         document.getElementById("brief").value = "";
       });
-      document.getElementById("btnBriefRandom").addEventListener("click", () => {
+      document.getElementById("btnBriefNext").addEventListener("click", () => {
         const briefEl = document.getElementById("brief");
-        briefEl.value = pickRandomBrief();
+        briefEl.value = pickNextBrief();
         briefEl.focus();
         briefEl.setSelectionRange(briefEl.value.length, briefEl.value.length);
       });

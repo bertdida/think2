@@ -11,7 +11,7 @@ You describe your situation once. The models debate over several rounds. At the 
 1. Open **`index.html`** in a modern browser (or host the file on any static site).
 2. Paste your **[OpenRouter](https://openrouter.ai/) API key**. It is **only used in your browser** to call OpenRouter. It is **not saved** and disappears when you reload the page.
 3. Choose **Strategist**, **Critic**, and **Synthesizer** models (defaults are sensible; your choices are remembered in the browser).
-4. Write your **brief** — what is going on, what you have tried, what you want decided. Use **Random brief** or **Clear** if you want quick examples or a blank field.
+4. Write your **brief** — what is going on, what you have tried, what you want decided. Use **Next sample brief** or **Clear** if you want quick examples or a blank field.
 5. Click **Start the council** and read the debate as it streams.
 
 **New session** clears the debate and your brief; your key field is not stored anyway.
