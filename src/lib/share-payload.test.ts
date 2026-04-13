@@ -3,6 +3,7 @@ import {
   buildSharePayloadV1,
   decodeSharePayloadFromHash,
   encodeShareHash,
+  isShareCompressionSupported,
   parseSharePayloadV1,
   SHARE_HASH_PREFIX,
 } from "./share-payload.js";
@@ -59,6 +60,10 @@ describe.skipIf(!compressionAvailable)("share-payload gzip roundtrip", () => {
 });
 
 describe("share-payload validation", () => {
+  it("isShareCompressionSupported matches CompressionStream availability", () => {
+    expect(isShareCompressionSupported()).toBe(compressionAvailable);
+  });
+
   it("parseSharePayloadV1 rejects missing round", () => {
     const bad = {
       v: 1,

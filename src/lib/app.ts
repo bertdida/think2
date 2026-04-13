@@ -395,6 +395,28 @@ const API_KEY_TOGGLE_SVG = {
   eyeOff: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>`,
 };
 
+function readLiveModelIdsFromDom(): {
+  strategist: string;
+  critic: string;
+  synthesizer: string;
+} {
+  const strategistEl = document.getElementById("strategistModel");
+  const criticEl = document.getElementById("criticModel");
+  const synthesizerEl = document.getElementById("synthesizerModel");
+  if (
+    !(strategistEl instanceof HTMLSelectElement) ||
+    !(criticEl instanceof HTMLSelectElement) ||
+    !(synthesizerEl instanceof HTMLSelectElement)
+  ) {
+    throw new Error("Missing model select elements.");
+  }
+  return {
+    strategist: strategistEl.value,
+    critic: criticEl.value,
+    synthesizer: synthesizerEl.value,
+  };
+}
+
 function syncApiKeyToggleUi(): void {
   const input = document.getElementById("apiKey");
   const btn = document.getElementById("btnApiKeyToggle");
@@ -419,11 +441,12 @@ async function copyShareLinkFromSession(): Promise<void> {
   if (!(briefEl instanceof HTMLTextAreaElement)) return;
   if (!(btnShareLink instanceof HTMLButtonElement)) return;
   try {
+    const ids = readLiveModelIdsFromDom();
     const payload = buildSharePayloadV1({
       brief: briefEl.value.trim(),
-      strategist: models.strategist,
-      critic: models.critic,
-      synthesizer: models.synthesizer,
+      strategist: ids.strategist,
+      critic: ids.critic,
+      synthesizer: ids.synthesizer,
       rounds: history,
       usageSteps: sessionUsageSteps,
     });
@@ -435,7 +458,13 @@ async function copyShareLinkFromSession(): Promise<void> {
       window.prompt("Copy this link:", url);
       return;
     }
-    window.history.replaceState(null, "", url);
+    try {
+      window.history.replaceState(null, "", url);
+    } catch {
+      showError(
+        "Link copied to clipboard, but the address bar could not be updated (URL may be too long for this browser).",
+      );
+    }
     const prev = btnShareLink.textContent;
     btnShareLink.textContent = "Copied";
     window.setTimeout(() => {
@@ -524,5 +553,15 @@ async function init(): Promise<void> {
 }
 
 export function bootstrapLiveApp(): void {
-  void init();
+  void init().catch((err) => {
+    console.error(err);
+    const el = document.getElementById("errorMsg");
+    if (el) {
+      el.textContent =
+        err instanceof Error
+          ? err.message
+          : "Something went wrong while starting the app.";
+      el.style.display = "block";
+    }
+  });
 }

@@ -6,6 +6,7 @@ import { loadSharePayloadFromLocation } from "./share-bootstrap.js";
 import {
   buildSharePayloadV1,
   encodeShareHash,
+  isShareCompressionSupported,
   shareUrlWithHash,
   type SharePayloadV1,
   type ShareUsageStepV1,
@@ -347,6 +348,12 @@ async function copyDemoShareLink(): Promise<void> {
   if (!(briefEl instanceof HTMLTextAreaElement)) return;
   if (!(btnShareLink instanceof HTMLButtonElement)) return;
   readDemoModelsFromDom();
+  if (!isShareCompressionSupported()) {
+    showError(
+      "This browser does not support CompressionStream (needed to shrink the link). Try an up-to-date Chrome, Firefox, Edge, or Safari.",
+    );
+    return;
+  }
   try {
     const payload = buildSharePayloadV1({
       brief: briefEl.value.trim(),
@@ -365,7 +372,13 @@ async function copyDemoShareLink(): Promise<void> {
       window.prompt("Copy this link:", url);
       return;
     }
-    window.history.replaceState(null, "", url);
+    try {
+      window.history.replaceState(null, "", url);
+    } catch {
+      showError(
+        "Link copied to clipboard, but the address bar could not be updated (URL may be too long for this browser).",
+      );
+    }
     const prev = btnShareLink.textContent;
     btnShareLink.textContent = "Copied";
     window.setTimeout(() => {
@@ -421,12 +434,18 @@ function wireDemo(): void {
 }
 
 export async function bootstrapDemoApp(): Promise<void> {
-  const loaded = await loadSharePayloadFromLocation();
-  if (loaded === "invalid") {
-    showShareDecodeError();
-  } else if (loaded) {
-    wireDemoShareViewer(loaded);
-    return;
+  try {
+    const loaded = await loadSharePayloadFromLocation();
+    if (loaded === "invalid") {
+      showShareDecodeError();
+    } else if (loaded) {
+      wireDemoShareViewer(loaded);
+      return;
+    }
+    wireDemo();
+  } catch (err) {
+    console.error(err);
+    const message = err instanceof Error ? err.message : String(err);
+    showError(message);
   }
-  wireDemo();
 }

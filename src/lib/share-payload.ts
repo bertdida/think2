@@ -180,7 +180,19 @@ export function buildSharePayloadV1(input: {
   return payload;
 }
 
+export function isShareCompressionSupported(): boolean {
+  return (
+    typeof globalThis.CompressionStream === "function" &&
+    typeof globalThis.DecompressionStream === "function"
+  );
+}
+
 export async function encodeShareHash(payload: SharePayloadV1): Promise<string> {
+  if (!isShareCompressionSupported()) {
+    throw new Error(
+      "This browser does not support CompressionStream (needed to shrink the link). Try an up-to-date Chrome, Firefox, Edge, or Safari.",
+    );
+  }
   const json = JSON.stringify(payload);
   if (json.length > MAX_JSON_CHARS) {
     throw new Error("Session is too large to share in a URL.");
