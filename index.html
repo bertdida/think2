@@ -877,6 +877,39 @@
         },
       ];
 
+      /** @type {readonly [string, string][]} */
+      const DEBATE_TRANSCRIPT_ROUNDS = [
+        ["r1", "STRATEGIST (Round 1)"],
+        ["r2", "CRITIC (Round 2)"],
+        ["r3", "STRATEGIST (Round 3)"],
+        ["r4", "CRITIC (Round 4)"],
+        ["r5", "STRATEGIST (Round 5)"],
+        ["r6", "CRITIC (Round 6)"],
+        ["r7", "STRATEGIST (Round 7)"],
+        ["r8", "CRITIC (Round 8)"],
+      ];
+
+      /**
+       * @param {string} brief
+       * @param {Record<string, string>} history
+       * @param {string} lastRoundId — include transcript through this round (inclusive)
+       */
+      function debateTranscriptThrough(brief, history, lastRoundId) {
+        const chunks = [`BRIEF:\n${brief}\n`];
+        for (const [id, label] of DEBATE_TRANSCRIPT_ROUNDS) {
+          const text = history[id];
+          if (typeof text === "string" && text.length > 0) {
+            chunks.push(`${label}:\n${text}\n`);
+          }
+          if (id === lastRoundId) break;
+        }
+        return chunks.join("\n");
+      }
+
+      const STRATEGIST_SYSTEM_OPENING = `You are a sharp, opinionated strategic advisor. When given a brief, propose a concrete, actionable strategy. Be direct. No fluff. Use bullet points where useful. Max 200 words.`;
+      const STRATEGIST_SYSTEM_DEFENSE = `You are a sharp, opinionated strategic advisor defending your position under pressure. Be direct. Concede where the critic has a point, but hold firm where you're confident. Max 200 words.`;
+      const CRITIC_SYSTEM = `You are a ruthless but fair devil's advocate. Find the weakest points, challenge them with better alternatives or hard questions, and acknowledge what improved when it did. Do not agree just to be polite. Be specific. Max 200 words.`;
+
       const ROUNDS = [
         {
           id: "r1",
@@ -890,7 +923,7 @@
               content: `Here is the situation:\n\n${brief}\n\nPropose your strategy. Be direct, specific, and actionable. Max 200 words.`,
             },
           ],
-          system: `You are a sharp, opinionated growth strategist. When given a brief, propose a concrete, actionable strategy. Be direct. No fluff. Use bullet points where useful. Max 200 words.`,
+          system: STRATEGIST_SYSTEM_OPENING,
         },
         {
           id: "r2",
@@ -901,10 +934,10 @@
           buildMessages: (brief, history) => [
             {
               role: "user",
-              content: `Situation:\n\n${brief}\n\nThe Strategist proposed:\n\n${history.r1}\n\nChallenge this strategy. Find the weakest points. Propose better alternatives where you disagree. Be specific. Max 200 words.`,
+              content: `${debateTranscriptThrough(brief, history, "r1")}\nChallenge this strategy. Find the weakest points. Propose better alternatives where you disagree. Be specific. Max 200 words.`,
             },
           ],
-          system: `You are a ruthless but fair devil's advocate. Find the weakest points in proposed strategies and challenge them with better alternatives or hard questions. Do not agree just to be polite. Be specific. Max 200 words.`,
+          system: CRITIC_SYSTEM,
         },
         {
           id: "r3",
@@ -915,10 +948,10 @@
           buildMessages: (brief, history) => [
             {
               role: "user",
-              content: `Your strategy was challenged:\n\n${history.r2}\n\nDefend or refine your position (first of three defense passes). Concede where the critic is right. Hold firm where you're not. Max 200 words.`,
+              content: `${debateTranscriptThrough(brief, history, "r2")}\nDefend or refine your position (first of three defense passes). Concede where the critic is right. Hold firm where you're not. Max 200 words.`,
             },
           ],
-          system: `You are a sharp, opinionated growth strategist defending your position under pressure. Be direct. Concede where the critic has a point, but hold firm where you're confident. Max 200 words.`,
+          system: STRATEGIST_SYSTEM_DEFENSE,
         },
         {
           id: "r4",
@@ -929,10 +962,10 @@
           buildMessages: (brief, history) => [
             {
               role: "user",
-              content: `The Strategist defended (pass 1 of 3):\n\n${history.r3}\n\nPush back on what still fails; acknowledge what improved. Max 200 words.`,
+              content: `${debateTranscriptThrough(brief, history, "r3")}\nPush back on what still fails; acknowledge what improved. Max 200 words.`,
             },
           ],
-          system: `You are a ruthless but fair devil's advocate. Be specific. Do not agree just to be polite. Max 200 words.`,
+          system: CRITIC_SYSTEM,
         },
         {
           id: "r5",
@@ -943,10 +976,10 @@
           buildMessages: (brief, history) => [
             {
               role: "user",
-              content: `The Critic responded:\n\n${history.r4}\n\nDefend or refine again (second of three defense passes). Max 200 words.`,
+              content: `${debateTranscriptThrough(brief, history, "r4")}\nDefend or refine again (second of three defense passes). Max 200 words.`,
             },
           ],
-          system: `You are a sharp, opinionated growth strategist defending your position under pressure. Be direct. Concede where the critic has a point, but hold firm where you're confident. Max 200 words.`,
+          system: STRATEGIST_SYSTEM_DEFENSE,
         },
         {
           id: "r6",
@@ -957,10 +990,10 @@
           buildMessages: (brief, history) => [
             {
               role: "user",
-              content: `The Strategist defended (pass 2 of 3):\n\n${history.r5}\n\nChallenge what still does not hold. Max 200 words.`,
+              content: `${debateTranscriptThrough(brief, history, "r5")}\nChallenge what still does not hold; credit stronger replies. Max 200 words.`,
             },
           ],
-          system: `You are a ruthless but fair devil's advocate. Be specific. Max 200 words.`,
+          system: CRITIC_SYSTEM,
         },
         {
           id: "r7",
@@ -971,10 +1004,10 @@
           buildMessages: (brief, history) => [
             {
               role: "user",
-              content: `The Critic responded:\n\n${history.r6}\n\nDefend or refine (third and final defense pass). Be explicit about what you concede vs. what you stand on. Max 200 words.`,
+              content: `${debateTranscriptThrough(brief, history, "r6")}\nDefend or refine (third and final defense pass). Be explicit about what you concede vs. what you stand on. Max 200 words.`,
             },
           ],
-          system: `You are a sharp, opinionated growth strategist defending your position under pressure. Be direct. Concede where the critic has a point, but hold firm where you're confident. Max 200 words.`,
+          system: STRATEGIST_SYSTEM_DEFENSE,
         },
         {
           id: "r8",
@@ -985,10 +1018,10 @@
           buildMessages: (brief, history) => [
             {
               role: "user",
-              content: `The Strategist's final defense:\n\n${history.r7}\n\nLast word before synthesis: concede where they convinced you; push back where they did not. Max 200 words.`,
+              content: `${debateTranscriptThrough(brief, history, "r7")}\nLast word before synthesis: concede where they convinced you; push back where they did not. Max 200 words.`,
             },
           ],
-          system: `You are a ruthless but fair devil's advocate. Be honest and specific. Max 200 words.`,
+          system: CRITIC_SYSTEM,
         },
         {
           id: "r9",
@@ -999,7 +1032,7 @@
           buildMessages: (brief, history) => [
             {
               role: "user",
-              content: `You observed a strategic debate (three strategist defense passes). Synthesize the strongest points into a final recommendation.\n\nBRIEF: ${brief}\n\nSTRATEGIST (Round 1): ${history.r1}\nCRITIC (Round 2): ${history.r2}\nSTRATEGIST (Round 3): ${history.r3}\nCRITIC (Round 4): ${history.r4}\nSTRATEGIST (Round 5): ${history.r5}\nCRITIC (Round 6): ${history.r6}\nSTRATEGIST (Round 7): ${history.r7}\nCRITIC (Round 8): ${history.r8}\n\nFormat your response exactly as:\n\nVERDICT: (1 decisive sentence)\n\nKEY ACTIONS:\n- (action 1)\n- (action 2)\n- (action 3)\n- (action 4)\n\nWATCH OUT FOR:\n- (risk 1)\n- (risk 2)`,
+              content: `You observed a strategic debate (three strategist defense passes). Synthesize the strongest points into a final recommendation.\n\n${debateTranscriptThrough(brief, history, "r8")}\nFormat your response exactly as:\n\nVERDICT: (1 decisive sentence)\n\nKEY ACTIONS:\n- (action 1)\n- (action 2)\n- (action 3)\n- (action 4)\n\nWATCH OUT FOR:\n- (risk 1)\n- (risk 2)`,
             },
           ],
           system: `You are a neutral senior advisor synthesizing a debate into a final recommendation. Be decisive. No hedging. Follow the exact format requested.`,
