@@ -586,6 +586,39 @@
         color: var(--error-inline);
       }
 
+      .round-usage {
+        margin-top: 12px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+        font-size: 0.7rem;
+        line-height: 1.5;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .round-usage .usage-model {
+        display: block;
+        margin-bottom: 4px;
+        word-break: break-all;
+      }
+
+      .session-usage {
+        margin-top: 20px;
+        padding: 12px 14px;
+        border: 1px solid var(--border);
+        border-radius: 2px;
+        background: var(--surface);
+        font-size: 0.75rem;
+        line-height: 1.5;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .session-usage strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+
       .cursor {
         display: inline-block;
         width: 2px;
@@ -782,6 +815,7 @@
 
       <section class="debate" aria-label="Strategy debate transcript">
         <div class="timeline" id="timeline"></div>
+        <div class="session-usage" id="sessionUsage" hidden></div>
       </section>
 
       <button class="btn-reset" id="btnReset" type="button">New session</button>
@@ -834,7 +868,7 @@
         { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
         { value: "openai/gpt-5", label: "GPT-5" },
         {
-          value: "deepseek/deepseek-chat-v3",
+          value: "deepseek/deepseek-chat",
           label: "DeepSeek V3",
         },
         {
@@ -1189,13 +1223,172 @@
         };
       }
 
+      const usageMoneyFmt = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 4,
+        maximumFractionDigits: 6,
+      });
+
+      /**
+       * @param {unknown} usage
+       * @returns {{ prompt: number | null; completion: number | null; total: number | null; cost: number | null }}
+       */
+      function parseOpenRouterUsage(usage) {
+        const empty = {
+          prompt: null,
+          completion: null,
+          total: null,
+          cost: null,
+        };
+        if (!usage || typeof usage !== "object") return empty;
+        const o = /** @type {Record<string, unknown>} */ (usage);
+        const readNum = (k) => {
+          const v = o[k];
+          return typeof v === "number" && Number.isFinite(v) ? v : null;
+        };
+        return {
+          prompt: readNum("prompt_tokens"),
+          completion: readNum("completion_tokens"),
+          total: readNum("total_tokens"),
+          cost: readNum("cost"),
+        };
+      }
+
+      function usageHasAnyTokenOrCost(u) {
+        return (
+          u.prompt != null ||
+          u.completion != null ||
+          u.total != null ||
+          u.cost != null
+        );
+      }
+
+      /**
+       * @param {{ prompt: number | null; completion: number | null; total: number | null; cost: number | null }} u
+       * @returns {number | null}
+       */
+      function sessionTokenContribution(u) {
+        if (u.total != null) return u.total;
+        if (u.prompt != null && u.completion != null) return u.prompt + u.completion;
+        return null;
+      }
+
+      /**
+       * @param {HTMLElement} cardEl
+       * @param {string} modelId
+       * @param {{ prompt: number | null; completion: number | null; total: number | null; cost: number | null }} u
+       */
+      function mountRoundUsageFooter(cardEl, modelId, u) {
+        const inner = cardEl.querySelector(".card-inner");
+        if (!inner) return;
+
+        const wrap = document.createElement("div");
+        wrap.className = "round-usage";
+        wrap.setAttribute("role", "status");
+
+        const modelLine = document.createElement("span");
+        modelLine.className = "usage-model";
+        modelLine.textContent = modelId;
+
+        const detail = document.createElement("span");
+
+        if (!usageHasAnyTokenOrCost(u)) {
+          detail.textContent = "Usage unavailable from API for this round.";
+        } else {
+          const parts = [];
+          if (u.prompt != null) parts.push(`in ${u.prompt.toLocaleString()}`);
+          if (u.completion != null)
+            parts.push(`out ${u.completion.toLocaleString()}`);
+          if (u.total != null) parts.push(`total ${u.total.toLocaleString()}`);
+          let line = parts.join(" · ");
+          if (u.cost != null) {
+            line += ` · ${usageMoneyFmt.format(u.cost)}`;
+          }
+          detail.textContent = line;
+        }
+
+        wrap.appendChild(modelLine);
+        wrap.appendChild(detail);
+        inner.appendChild(wrap);
+      }
+
+      /**
+       * @returns {{ tokensSum: number; tokenRounds: number; costSum: number; costRounds: number }}
+       */
+      function createEmptySessionUsageAgg() {
+        return {
+          tokensSum: 0,
+          tokenRounds: 0,
+          costSum: 0,
+          costRounds: 0,
+        };
+      }
+
+      /**
+       * @param {{ tokensSum: number; tokenRounds: number; costSum: number; costRounds: number }} agg
+       * @param {{ prompt: number | null; completion: number | null; total: number | null; cost: number | null }} u
+       */
+      function addUsageToSessionAgg(agg, u) {
+        const tok = sessionTokenContribution(u);
+        if (tok != null) {
+          agg.tokensSum += tok;
+          agg.tokenRounds += 1;
+        }
+        if (u.cost != null) {
+          agg.costSum += u.cost;
+          agg.costRounds += 1;
+        }
+      }
+
+      /**
+       * @param {{ tokensSum: number; tokenRounds: number; costSum: number; costRounds: number }} agg
+       */
+      function renderSessionUsageSummary(agg) {
+        const el = document.getElementById("sessionUsage");
+        if (!el) return;
+        if (agg.tokenRounds === 0 && agg.costRounds === 0) {
+          el.replaceChildren();
+          el.hidden = true;
+          return;
+        }
+        el.hidden = false;
+        el.replaceChildren();
+        const strong = document.createElement("strong");
+        strong.textContent = "Session (OpenRouter)";
+        el.appendChild(strong);
+        const desc = document.createElement("p");
+        desc.style.margin = "6px 0 0";
+        const bits = [];
+        if (agg.tokenRounds > 0) {
+          bits.push(
+            `Σ tokens (per-round total, summed): ${agg.tokensSum.toLocaleString()} (${agg.tokenRounds} rounds)`,
+          );
+        }
+        if (agg.costRounds > 0) {
+          bits.push(
+            `Σ cost: ${usageMoneyFmt.format(agg.costSum)} (${agg.costRounds} rounds)`,
+          );
+        }
+        desc.textContent = bits.join(" — ");
+        el.appendChild(desc);
+      }
+
+      function clearSessionUsageSummary() {
+        const el = document.getElementById("sessionUsage");
+        if (!el) return;
+        el.replaceChildren();
+        el.hidden = true;
+      }
+
       /**
        * @param {typeof ROUNDS[number]} round
        * @param {string} brief
        * @param {string} apiKey
+       * @param {{ tokensSum: number; tokenRounds: number; costSum: number; costRounds: number }} sessionAgg
        * @returns {Promise<boolean>}
        */
-      async function runRound(round, brief, apiKey) {
+      async function runRound(round, brief, apiKey, sessionAgg) {
         const card = document.createElement("div");
         card.className = `round-card ${round.cls} visible`;
         card.id = round.id;
@@ -1258,6 +1451,8 @@
 
           const decoder = new TextDecoder();
           let buffer = "";
+          /** @type {unknown} */
+          let lastUsageRaw = null;
 
           while (true) {
             const { done, value } = await reader.read();
@@ -1279,6 +1474,9 @@
               } catch {
                 continue;
               }
+              if (json.usage && typeof json.usage === "object") {
+                lastUsageRaw = json.usage;
+              }
               const chunk = json.choices?.[0]?.delta?.content;
               if (typeof chunk === "string" && chunk.length > 0) {
                 streamRef.push(chunk);
@@ -1289,6 +1487,9 @@
           const fullText = streamRef.finish();
           streamRef = null;
           history[round.id] = fullText;
+          const usageSnap = parseOpenRouterUsage(lastUsageRaw);
+          mountRoundUsageFooter(card, model, usageSnap);
+          addUsageToSessionAgg(sessionAgg, usageSnap);
           return true;
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
@@ -1331,7 +1532,9 @@
         hideError();
         btnStart.disabled = true;
         document.getElementById("timeline").innerHTML = "";
+        clearSessionUsageSummary();
         history = {};
+        const sessionUsageAgg = createEmptySessionUsageAgg();
 
         let completed = false;
         try {
@@ -1339,9 +1542,10 @@
           assertModelsKnown(idSet, chosen);
 
           for (const round of ROUNDS) {
-            const ok = await runRound(round, brief, apiKey);
+            const ok = await runRound(round, brief, apiKey, sessionUsageAgg);
             if (!ok) return;
           }
+          renderSessionUsageSummary(sessionUsageAgg);
           completed = true;
           document.getElementById("btnReset").style.display = "block";
         } catch (err) {
@@ -1354,6 +1558,7 @@
 
       function resetSession() {
         document.getElementById("timeline").innerHTML = "";
+        clearSessionUsageSummary();
         document.getElementById("btnReset").style.display = "none";
         document.getElementById("btnStart").disabled = false;
         document.getElementById("brief").value = "";
