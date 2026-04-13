@@ -1,3 +1,6 @@
+import { appendRoundCard, createStreamRenderer, escapeHtml } from "./shared.js";
+import { parseOpenRouterUsage, type ParsedUsage } from "./openrouter-usage.js";
+
 const OPENROUTER_ORIGIN = "https://openrouter.ai";
 const STORAGE_STRATEGIST = "think2.strategistModel";
 const STORAGE_CRITIC = "think2.criticModel";
@@ -19,7 +22,7 @@ const SAMPLE_BRIEFS = [
 
 const MODEL_ID_RE = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i;
 
-const MODEL_PRESETS = [
+const MODEL_PRESETS: ReadonlyArray<{ value: string; label: string }> = [
   {
     value: "anthropic/claude-sonnet-4.6",
     label: "Claude Sonnet 4.6",
@@ -44,8 +47,7 @@ const MODEL_PRESETS = [
   },
 ];
 
-/** @type {readonly [string, string][]} */
-const DEBATE_TRANSCRIPT_ROUNDS = [
+const DEBATE_TRANSCRIPT_ROUNDS: ReadonlyArray<[string, string]> = [
   ["r1", "PLANNER (Round 1)"],
   ["r2", "CHALLENGER (Round 2)"],
   ["r3", "PLANNER (Round 3)"],
@@ -56,12 +58,11 @@ const DEBATE_TRANSCRIPT_ROUNDS = [
   ["r8", "CHALLENGER (Round 8)"],
 ];
 
-/**
- * @param {string} brief
- * @param {Record<string, string>} history
- * @param {string} lastRoundId — include transcript through this round (inclusive)
- */
-function debateTranscriptThrough(brief, history, lastRoundId) {
+function debateTranscriptThrough(
+  brief: string,
+  history: Record<string, string>,
+  lastRoundId: string,
+): string {
   const chunks = [`BRIEF:\n${brief}\n`];
   for (const [id, label] of DEBATE_TRANSCRIPT_ROUNDS) {
     const text = history[id];
@@ -77,14 +78,34 @@ const STRATEGIST_SYSTEM_OPENING = `You are a sharp, opinionated strategic adviso
 const STRATEGIST_SYSTEM_DEFENSE = `You are a sharp, opinionated strategic advisor defending your position under pressure. Be direct. Concede where the challenger has a point, but hold firm where you're confident. Max 200 words.`;
 const CRITIC_SYSTEM = `You are a ruthless but fair devil's advocate. Find the weakest points, challenge them with better alternatives or hard questions, and acknowledge what improved when it did. Do not agree just to be polite. Be specific. Max 200 words.`;
 
-const ROUNDS = [
+interface ChatMessage {
+  role: "user" | "system" | "assistant";
+  content: string;
+}
+
+type ModelKey = "strategist" | "critic" | "synthesizer";
+
+interface RoundDef {
+  id: string;
+  speaker: string;
+  cls: string;
+  label: string;
+  modelKey: ModelKey;
+  buildMessages: (
+    brief: string,
+    history: Record<string, string>,
+  ) => ChatMessage[];
+  system: string;
+}
+
+const ROUNDS: RoundDef[] = [
   {
     id: "r1",
     speaker: "Planner",
     cls: "strategist",
     label: "Round 1 — opening strategy",
     modelKey: "strategist",
-    buildMessages: (brief, history) => [
+    buildMessages: (brief) => [
       {
         role: "user",
         content: `Here is the situation:\n\n${brief}\n\nPropose your strategy. Be direct, specific, and actionable. Max 200 words.`,
@@ -206,16 +227,14 @@ const ROUNDS = [
   },
 ];
 
-/** @type {Record<string, string>} */
-let history = {};
-/** @type {{ strategist: string; critic: string; synthesizer: string }} */
-let models = {
+let history: Record<string, string> = {};
+const models: Record<ModelKey, string> = {
   strategist: "",
   critic: "",
   synthesizer: "",
 };
 
-function openRouterHeaders(apiKey) {
+function openRouterHeaders(apiKey: string): Record<string, string> {
   return {
     Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json",
@@ -224,11 +243,14 @@ function openRouterHeaders(apiKey) {
   };
 }
 
-function parseHttpErrorBody(text, status) {
+function parseHttpErrorBody(text: string, status: number): string {
   try {
-    const j = JSON.parse(text);
-    const msg = j.error?.message;
-    if (typeof msg === "string" && msg.length > 0) return msg;
+    const j: unknown = JSON.parse(text);
+    if (j && typeof j === "object" && "error" in j) {
+      const err = (j as { error?: { message?: unknown } }).error;
+      const msg = err?.message;
+      if (typeof msg === "string" && msg.length > 0) return msg;
+    }
   } catch {
     /* ignore */
   }
@@ -237,24 +259,32 @@ function parseHttpErrorBody(text, status) {
   return `HTTP ${status}`;
 }
 
-function showError(msg) {
+function showError(msg: string): void {
   const el = document.getElementById("errorMsg");
+  if (!el) return;
   el.textContent = msg;
   el.style.display = "block";
 }
 
-function hideError() {
-  document.getElementById("errorMsg").style.display = "none";
+function hideError(): void {
+  const el = document.getElementById("errorMsg");
+  if (!el) return;
+  el.style.display = "none";
 }
 
-function presetValues() {
+function presetValues(): Set<string> {
   return new Set(MODEL_PRESETS.map((p) => p.value));
 }
 
-function fillSelect(selectId, storageKey, fallbackValue) {
-  const el = /** @type {HTMLSelectElement} */ (
-    document.getElementById(selectId)
-  );
+function fillSelect(
+  selectId: string,
+  storageKey: string,
+  fallbackValue: string,
+): void {
+  const el = document.getElementById(selectId);
+  if (!(el instanceof HTMLSelectElement)) {
+    throw new Error(`Missing select #${selectId}`);
+  }
   el.replaceChildren();
   for (const o of MODEL_PRESETS) {
     const opt = document.createElement("option");
@@ -271,16 +301,20 @@ function fillSelect(selectId, storageKey, fallbackValue) {
   });
 }
 
-/**
- * @param {string} apiKey
- * @returns {Promise<Set<string>>}
- */
-async function fetchOpenRouterModelIds(apiKey) {
+interface OpenRouterModelRow {
+  id?: string;
+}
+
+interface OpenRouterModelsJson {
+  data?: OpenRouterModelRow[];
+}
+
+async function fetchOpenRouterModelIds(apiKey: string): Promise<Set<string>> {
   const cached = sessionStorage.getItem(SESSION_MODEL_IDS);
   if (cached) {
-    const parsed = JSON.parse(cached);
+    const parsed: unknown = JSON.parse(cached);
     if (Array.isArray(parsed) && parsed.every((x) => typeof x === "string"))
-      return new Set(parsed);
+      return new Set(parsed as string[]);
   }
 
   const res = await fetch(`${OPENROUTER_ORIGIN}/api/v1/models`, {
@@ -294,9 +328,9 @@ async function fetchOpenRouterModelIds(apiKey) {
   if (!res.ok) {
     throw new Error(parseHttpErrorBody(text, res.status));
   }
-  let data;
+  let data: OpenRouterModelsJson;
   try {
-    data = JSON.parse(text);
+    data = JSON.parse(text) as OpenRouterModelsJson;
   } catch {
     throw new Error("Invalid JSON from OpenRouter models list.");
   }
@@ -305,8 +339,8 @@ async function fetchOpenRouterModelIds(apiKey) {
     throw new Error("Unexpected models response shape.");
   }
   const ids = rows
-    .map((m) => m && typeof m.id === "string" && m.id)
-    .filter(Boolean);
+    .map((m) => (m && typeof m.id === "string" ? m.id : ""))
+    .filter((id): id is string => Boolean(id));
   if (ids.length === 0) {
     throw new Error("No models returned from OpenRouter.");
   }
@@ -314,11 +348,7 @@ async function fetchOpenRouterModelIds(apiKey) {
   return new Set(ids);
 }
 
-/**
- * @param {Set<string>} idSet
- * @param {string[]} ids
- */
-function assertModelsKnown(idSet, ids) {
+function assertModelsKnown(idSet: Set<string>, ids: string[]): void {
   const missing = ids.filter((id) => !idSet.has(id));
   if (missing.length > 0) {
     throw new Error(
@@ -327,10 +357,7 @@ function assertModelsKnown(idSet, ids) {
   }
 }
 
-/**
- * @param {string[]} ids
- */
-function assertModelIdFormat(ids) {
+function assertModelIdFormat(ids: string[]): void {
   for (const id of ids) {
     if (!MODEL_ID_RE.test(id)) {
       throw new Error(
@@ -340,13 +367,13 @@ function assertModelIdFormat(ids) {
   }
 }
 
-function pickNextBrief() {
+function pickNextBrief(): string {
   if (SAMPLE_BRIEFS.length === 0) return "";
   const ta = document.getElementById("brief");
-  const current = ta ? ta.value : "";
+  const current = ta instanceof HTMLTextAreaElement ? ta.value : "";
   const idx = SAMPLE_BRIEFS.indexOf(current);
   const nextIdx = idx === -1 ? 0 : (idx + 1) % SAMPLE_BRIEFS.length;
-  return SAMPLE_BRIEFS[nextIdx];
+  return SAMPLE_BRIEFS[nextIdx] ?? "";
 }
 
 const usageMoneyFmt = new Intl.NumberFormat("en-US", {
@@ -356,32 +383,7 @@ const usageMoneyFmt = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 6,
 });
 
-/**
- * @param {unknown} usage
- * @returns {{ prompt: number | null; completion: number | null; total: number | null; cost: number | null }}
- */
-function parseOpenRouterUsage(usage) {
-  const empty = {
-    prompt: null,
-    completion: null,
-    total: null,
-    cost: null,
-  };
-  if (!usage || typeof usage !== "object") return empty;
-  const o = /** @type {Record<string, unknown>} */ (usage);
-  const readNum = (k) => {
-    const v = o[k];
-    return typeof v === "number" && Number.isFinite(v) ? v : null;
-  };
-  return {
-    prompt: readNum("prompt_tokens"),
-    completion: readNum("completion_tokens"),
-    total: readNum("total_tokens"),
-    cost: readNum("cost"),
-  };
-}
-
-function usageHasAnyTokenOrCost(u) {
+function usageHasAnyTokenOrCost(u: ParsedUsage): boolean {
   return (
     u.prompt != null ||
     u.completion != null ||
@@ -390,22 +392,17 @@ function usageHasAnyTokenOrCost(u) {
   );
 }
 
-/**
- * @param {{ prompt: number | null; completion: number | null; total: number | null; cost: number | null }} u
- * @returns {number | null}
- */
-function sessionTokenContribution(u) {
+function sessionTokenContribution(u: ParsedUsage): number | null {
   if (u.total != null) return u.total;
   if (u.prompt != null && u.completion != null) return u.prompt + u.completion;
   return null;
 }
 
-/**
- * @param {HTMLElement} cardEl
- * @param {string} modelId
- * @param {{ prompt: number | null; completion: number | null; total: number | null; cost: number | null }} u
- */
-function mountRoundUsageFooter(cardEl, modelId, u) {
+function mountRoundUsageFooter(
+  cardEl: HTMLElement,
+  modelId: string,
+  u: ParsedUsage,
+): void {
   const inner = cardEl.querySelector(".card-inner");
   if (!inner) return;
 
@@ -422,7 +419,7 @@ function mountRoundUsageFooter(cardEl, modelId, u) {
   if (!usageHasAnyTokenOrCost(u)) {
     detail.textContent = "Usage unavailable from API for this step.";
   } else {
-    const parts = [];
+    const parts: string[] = [];
     if (u.prompt != null) parts.push(`in ${u.prompt.toLocaleString()}`);
     if (u.completion != null)
       parts.push(`out ${u.completion.toLocaleString()}`);
@@ -439,10 +436,14 @@ function mountRoundUsageFooter(cardEl, modelId, u) {
   inner.appendChild(wrap);
 }
 
-/**
- * @returns {{ tokensSum: number; tokenRounds: number; costSum: number; costRounds: number }}
- */
-function createEmptySessionUsageAgg() {
+interface SessionUsageAgg {
+  tokensSum: number;
+  tokenRounds: number;
+  costSum: number;
+  costRounds: number;
+}
+
+function createEmptySessionUsageAgg(): SessionUsageAgg {
   return {
     tokensSum: 0,
     tokenRounds: 0,
@@ -451,11 +452,7 @@ function createEmptySessionUsageAgg() {
   };
 }
 
-/**
- * @param {{ tokensSum: number; tokenRounds: number; costSum: number; costRounds: number }} agg
- * @param {{ prompt: number | null; completion: number | null; total: number | null; cost: number | null }} u
- */
-function addUsageToSessionAgg(agg, u) {
+function addUsageToSessionAgg(agg: SessionUsageAgg, u: ParsedUsage): void {
   const tok = sessionTokenContribution(u);
   if (tok != null) {
     agg.tokensSum += tok;
@@ -467,10 +464,7 @@ function addUsageToSessionAgg(agg, u) {
   }
 }
 
-/**
- * @param {{ tokensSum: number; tokenRounds: number; costSum: number; costRounds: number }} agg
- */
-function renderSessionUsageSummary(agg) {
+function renderSessionUsageSummary(agg: SessionUsageAgg): void {
   const el = document.getElementById("sessionUsage");
   if (!el) return;
   if (agg.tokenRounds === 0 && agg.costRounds === 0) {
@@ -485,7 +479,7 @@ function renderSessionUsageSummary(agg) {
   el.appendChild(strong);
   const desc = document.createElement("p");
   desc.style.margin = "6px 0 0";
-  const bits = [];
+  const bits: string[] = [];
   if (agg.tokenRounds > 0) {
     bits.push(
       `Σ tokens (per-step total, summed): ${agg.tokensSum.toLocaleString()} (${agg.tokenRounds} steps)`,
@@ -500,21 +494,27 @@ function renderSessionUsageSummary(agg) {
   el.appendChild(desc);
 }
 
-function clearSessionUsageSummary() {
+function clearSessionUsageSummary(): void {
   const el = document.getElementById("sessionUsage");
   if (!el) return;
   el.replaceChildren();
   el.hidden = true;
 }
 
-/**
- * @param {typeof ROUNDS[number]} round
- * @param {string} brief
- * @param {string} apiKey
- * @param {{ tokensSum: number; tokenRounds: number; costSum: number; costRounds: number }} sessionAgg
- * @returns {Promise<boolean>}
- */
-async function runRound(round, brief, apiKey, sessionAgg) {
+interface SseChoiceDelta {
+  choices?: Array<{ delta?: { content?: unknown } }>;
+}
+
+interface SseChunkJson extends SseChoiceDelta {
+  usage?: unknown;
+}
+
+async function runRound(
+  round: RoundDef,
+  brief: string,
+  apiKey: string,
+  sessionAgg: SessionUsageAgg,
+): Promise<boolean> {
   const { card, contentEl, typingEl } = appendRoundCard({
     id: round.id,
     speaker: round.speaker,
@@ -522,8 +522,7 @@ async function runRound(round, brief, apiKey, sessionAgg) {
     label: round.label,
   });
   const model = models[round.modelKey];
-  /** @type {ReturnType<typeof createStreamRenderer> | null} */
-  let streamRef = null;
+  let streamRef: ReturnType<typeof createStreamRenderer> | null = null;
 
   try {
     const response = await fetch(
@@ -559,8 +558,7 @@ async function runRound(round, brief, apiKey, sessionAgg) {
 
     const decoder = new TextDecoder();
     let buffer = "";
-    /** @type {unknown} */
-    let lastUsageRaw = null;
+    let lastUsageRaw: unknown = null;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -576,9 +574,9 @@ async function runRound(round, brief, apiKey, sessionAgg) {
         if (!trimmed.startsWith("data: ")) continue;
         const data = trimmed.slice(6);
         if (data === "[DONE]") break;
-        let json;
+        let json: SseChunkJson;
         try {
-          json = JSON.parse(data);
+          json = JSON.parse(data) as SseChunkJson;
         } catch {
           continue;
         }
@@ -613,33 +611,51 @@ async function runRound(round, brief, apiKey, sessionAgg) {
   }
 }
 
-async function startDebate() {
-  const apiKey = document.getElementById("apiKey").value.trim();
-  const brief = document.getElementById("brief").value.trim();
+async function startDebate(): Promise<void> {
+  const apiKeyEl = document.getElementById("apiKey");
+  const briefEl = document.getElementById("brief");
   const btnStart = document.getElementById("btnStart");
+  if (
+    !(apiKeyEl instanceof HTMLInputElement) ||
+    !(briefEl instanceof HTMLTextAreaElement) ||
+    !(btnStart instanceof HTMLButtonElement)
+  ) {
+    throw new Error("Missing required session controls in DOM.");
+  }
 
-  if (!apiKey) return showError("Paste your OpenRouter API key first.");
-  if (!brief) return showError("Describe your situation first.");
+  const apiKey = apiKeyEl.value.trim();
+  const brief = briefEl.value.trim();
 
-  models.strategist = document.getElementById("strategistModel").value;
-  models.critic = document.getElementById("criticModel").value;
-  models.synthesizer = document.getElementById("synthesizerModel").value;
+  if (!apiKey) return void showError("Paste your OpenRouter API key first.");
+  if (!brief) return void showError("Describe your situation first.");
 
-  const chosen = [
-    models.strategist,
-    models.critic,
-    models.synthesizer,
-  ];
+  const strategistEl = document.getElementById("strategistModel");
+  const criticEl = document.getElementById("criticModel");
+  const synthesizerEl = document.getElementById("synthesizerModel");
+  if (
+    !(strategistEl instanceof HTMLSelectElement) ||
+    !(criticEl instanceof HTMLSelectElement) ||
+    !(synthesizerEl instanceof HTMLSelectElement)
+  ) {
+    throw new Error("Missing model select elements.");
+  }
+
+  models.strategist = strategistEl.value;
+  models.critic = criticEl.value;
+  models.synthesizer = synthesizerEl.value;
+
+  const chosen = [models.strategist, models.critic, models.synthesizer];
   try {
     assertModelIdFormat(chosen);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return showError(msg);
+    return void showError(msg);
   }
 
   hideError();
   btnStart.disabled = true;
-  document.getElementById("timeline").innerHTML = "";
+  const timeline = document.getElementById("timeline");
+  if (timeline) timeline.innerHTML = "";
   clearSessionUsageSummary();
   history = {};
   const sessionUsageAgg = createEmptySessionUsageAgg();
@@ -655,7 +671,8 @@ async function startDebate() {
     }
     renderSessionUsageSummary(sessionUsageAgg);
     completed = true;
-    document.getElementById("btnReset").style.display = "block";
+    const btnReset = document.getElementById("btnReset");
+    if (btnReset instanceof HTMLElement) btnReset.style.display = "block";
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     showError(message);
@@ -664,41 +681,39 @@ async function startDebate() {
   }
 }
 
-function resetSession() {
-  document.getElementById("timeline").innerHTML = "";
+function resetSession(): void {
+  const timeline = document.getElementById("timeline");
+  if (timeline) timeline.innerHTML = "";
   clearSessionUsageSummary();
-  document.getElementById("btnReset").style.display = "none";
-  document.getElementById("btnStart").disabled = false;
-  document.getElementById("brief").value = "";
+  const btnReset = document.getElementById("btnReset");
+  const btnStart = document.getElementById("btnStart");
+  const brief = document.getElementById("brief");
   const apiKeyEl = document.getElementById("apiKey");
-  apiKeyEl.type = "password";
-  syncApiKeyToggleUi();
+  if (btnReset instanceof HTMLElement) btnReset.style.display = "none";
+  if (btnStart instanceof HTMLButtonElement) btnStart.disabled = false;
+  if (brief instanceof HTMLTextAreaElement) brief.value = "";
+  if (apiKeyEl instanceof HTMLInputElement) {
+    apiKeyEl.type = "password";
+    syncApiKeyToggleUi();
+  }
   history = {};
   hideError();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
-
-document.getElementById("btnStart").addEventListener("click", startDebate);
-document.getElementById("btnReset").addEventListener("click", resetSession);
-
-document.getElementById("btnBriefClear").addEventListener("click", () => {
-  document.getElementById("brief").value = "";
-});
-document.getElementById("btnBriefNext").addEventListener("click", () => {
-  const briefEl = document.getElementById("brief");
-  briefEl.value = pickNextBrief();
-  briefEl.focus();
-  briefEl.setSelectionRange(briefEl.value.length, briefEl.value.length);
-});
 
 const API_KEY_TOGGLE_SVG = {
   eye: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`,
   eyeOff: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>`,
 };
 
-function syncApiKeyToggleUi() {
+function syncApiKeyToggleUi(): void {
   const input = document.getElementById("apiKey");
   const btn = document.getElementById("btnApiKeyToggle");
+  if (
+    !(input instanceof HTMLInputElement) ||
+    !(btn instanceof HTMLButtonElement)
+  )
+    return;
   const masked = input.type === "password";
   btn.innerHTML = masked ? API_KEY_TOGGLE_SVG.eye : API_KEY_TOGGLE_SVG.eyeOff;
   btn.setAttribute("aria-pressed", masked ? "false" : "true");
@@ -709,18 +724,64 @@ function syncApiKeyToggleUi() {
   btn.title = masked ? "Show key" : "Mask key";
 }
 
-document.getElementById("btnApiKeyToggle").addEventListener("click", () => {
-  const input = document.getElementById("apiKey");
-  input.type = input.type === "password" ? "text" : "password";
+function wireApp(): void {
+  const btnStart = document.getElementById("btnStart");
+  const btnReset = document.getElementById("btnReset");
+  const btnBriefClear = document.getElementById("btnBriefClear");
+  const btnBriefNext = document.getElementById("btnBriefNext");
+  const btnApiKeyToggle = document.getElementById("btnApiKeyToggle");
+
+  if (!(btnStart instanceof HTMLButtonElement)) {
+    throw new Error("Missing #btnStart");
+  }
+  if (!(btnReset instanceof HTMLButtonElement)) {
+    throw new Error("Missing #btnReset");
+  }
+  if (!(btnBriefClear instanceof HTMLButtonElement)) {
+    throw new Error("Missing #btnBriefClear");
+  }
+  if (!(btnBriefNext instanceof HTMLButtonElement)) {
+    throw new Error("Missing #btnBriefNext");
+  }
+  if (!(btnApiKeyToggle instanceof HTMLButtonElement)) {
+    throw new Error("Missing #btnApiKeyToggle");
+  }
+
+  btnStart.addEventListener("click", () => void startDebate());
+  btnReset.addEventListener("click", resetSession);
+
+  btnBriefClear.addEventListener("click", () => {
+    const briefEl = document.getElementById("brief");
+    if (briefEl instanceof HTMLTextAreaElement) briefEl.value = "";
+  });
+  btnBriefNext.addEventListener("click", () => {
+    const briefEl = document.getElementById("brief");
+    if (!(briefEl instanceof HTMLTextAreaElement)) return;
+    briefEl.value = pickNextBrief();
+    briefEl.focus();
+    briefEl.setSelectionRange(briefEl.value.length, briefEl.value.length);
+  });
+
+  btnApiKeyToggle.addEventListener("click", () => {
+    const input = document.getElementById("apiKey");
+    if (!(input instanceof HTMLInputElement)) return;
+    input.type = input.type === "password" ? "text" : "password";
+    syncApiKeyToggleUi();
+  });
+
   syncApiKeyToggleUi();
-});
 
-syncApiKeyToggleUi();
+  fillSelect(
+    "strategistModel",
+    STORAGE_STRATEGIST,
+    "anthropic/claude-sonnet-4.6",
+  );
+  fillSelect("criticModel", STORAGE_CRITIC, "google/gemini-2.5-pro");
+  fillSelect(
+    "synthesizerModel",
+    STORAGE_SYNTHESIZER,
+    "anthropic/claude-sonnet-4.6",
+  );
+}
 
-fillSelect("strategistModel", STORAGE_STRATEGIST, "anthropic/claude-sonnet-4.6");
-fillSelect("criticModel", STORAGE_CRITIC, "google/gemini-2.5-pro");
-fillSelect(
-  "synthesizerModel",
-  STORAGE_SYNTHESIZER,
-  "anthropic/claude-sonnet-4.6",
-);
+wireApp();

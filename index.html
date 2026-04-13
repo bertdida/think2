@@ -8,18 +8,32 @@
       content="think2: describe your situation once. One AI proposes a plan, another challenges it, and a third turns the exchange into a clear verdict, next steps, and risks to watch for. Your OpenRouter API key is used only in this browser tab—it is not saved."
     />
     <meta name="robots" content="index,follow" />
-    <meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)" />
+    <meta
+      name="theme-color"
+      content="#f4f3f0"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#141414"
+      media="(prefers-color-scheme: dark)"
+    />
     <link rel="canonical" href="https://think2.xyz/" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://think2.xyz/" />
-    <meta property="og:title" content="think2 — stress-tested advice, one clear verdict" />
+    <meta
+      property="og:title"
+      content="think2 — stress-tested advice, one clear verdict"
+    />
     <meta
       property="og:description"
       content="think2: describe your situation once. One AI proposes a plan, another challenges it, and a third turns the exchange into a clear verdict, next steps, and risks to watch for. Your OpenRouter API key is used only in this browser tab—it is not saved."
     />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="think2 — stress-tested advice, one clear verdict" />
+    <meta
+      name="twitter:title"
+      content="think2 — stress-tested advice, one clear verdict"
+    />
     <meta
       name="twitter:description"
       content="One AI plans, another pushes back, a third resolves it into verdict, actions, and risks. Your OpenRouter key never leaves the browser."
@@ -55,7 +69,8 @@
             href="https://github.com/bertdida/think2"
             target="_blank"
             rel="noopener noreferrer"
-            >GitHub</a>
+            >GitHub</a
+          >
         </nav>
       </div>
     </header>
@@ -67,7 +82,7 @@
         aria-labelledby="setup-heading"
       >
         <h2 id="setup-heading">Session setup</h2>
-        <form id="debateForm" onsubmit="return false">
+        <form id="debateForm" onsubmit="return false;">
           <div class="field">
             <label for="apiKey">OpenRouter API key</label>
             <div class="api-key-wrap">
@@ -89,7 +104,8 @@
               ></button>
             </div>
             <p class="key-warning">
-              Used only in this tab for OpenRouter. Not saved — gone after reload.
+              Used only in this tab for OpenRouter. Not saved — gone after
+              reload.
             </p>
           </div>
 
@@ -156,7 +172,6 @@
       </p>
     </footer>
 
-    <script src="js/shared.js"></script>
-    <script src="js/app.js"></script>
+    <script type="module" src="/src/entries/index.ts"></script>
   </body>
 </html>

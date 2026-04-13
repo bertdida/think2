@@ -1,8 +1,6 @@
-/* global document, requestAnimationFrame, cancelAnimationFrame */
+const SCROLL_BOTTOM_TOLERANCE_PX = 64;
 
-var SCROLL_BOTTOM_TOLERANCE_PX = 64;
-
-function escapeHtml(str) {
+export function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -10,17 +8,19 @@ function escapeHtml(str) {
     .replace(/"/g, "&quot;");
 }
 
-/**
- * @param {Element | null} root
- */
-function isDocumentPinnedToBottom(root) {
+export function isDocumentPinnedToBottom(root: Element | null): boolean {
   if (!root) return true;
-  const gap =
-    root.scrollHeight - root.scrollTop - root.clientHeight;
+  const gap = root.scrollHeight - root.scrollTop - root.clientHeight;
   return gap <= SCROLL_BOTTOM_TOLERANCE_PX;
 }
 
-function createStreamRenderer(contentEl) {
+export interface StreamRenderer {
+  push(chunk: string): void;
+  cancel(): void;
+  finish(): string;
+}
+
+export function createStreamRenderer(contentEl: HTMLElement): StreamRenderer {
   const textSpan = document.createElement("span");
   textSpan.className = "stream-text";
   const cursorSpan = document.createElement("span");
@@ -45,12 +45,11 @@ function createStreamRenderer(contentEl) {
   };
 
   return {
-    push(chunk) {
+    push(chunk: string) {
       if (!chunk) return;
       fullText += chunk;
       if (raf === 0) raf = requestAnimationFrame(flushText);
-      if (scrollRaf === 0)
-        scrollRaf = requestAnimationFrame(flushScroll);
+      if (scrollRaf === 0) scrollRaf = requestAnimationFrame(flushScroll);
     },
     cancel() {
       if (raf !== 0) cancelAnimationFrame(raf);
@@ -70,14 +69,25 @@ function createStreamRenderer(contentEl) {
   };
 }
 
-/**
- * @param {{ id: string; speaker: string; cls: string; label: string }} roundDisplay
- * @returns {{ card: HTMLDivElement; contentEl: HTMLElement; typingEl: HTMLElement }}
- */
-function appendRoundCard(roundDisplay) {
+export interface RoundDisplay {
+  id: string;
+  speaker: string;
+  cls: string;
+  label: string;
+}
+
+export interface AppendRoundCardResult {
+  card: HTMLDivElement;
+  contentEl: HTMLElement;
+  typingEl: HTMLElement;
+}
+
+export function appendRoundCard(
+  roundDisplay: RoundDisplay,
+): AppendRoundCardResult {
   const timeline = document.getElementById("timeline");
   if (!timeline) {
-    throw new Error('Missing element #timeline');
+    throw new Error("Missing element #timeline");
   }
 
   const card = document.createElement("div");

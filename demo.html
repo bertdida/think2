@@ -8,8 +8,16 @@
       content="think2 interactive demo: one fixed scenario with canned planner–challenger–resolver text. No OpenRouter calls and no real API key."
     />
     <meta name="robots" content="index,follow" />
-    <meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)" />
+    <meta
+      name="theme-color"
+      content="#f4f3f0"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#141414"
+      media="(prefers-color-scheme: dark)"
+    />
     <link rel="canonical" href="https://think2.xyz/demo.html" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://think2.xyz/demo.html" />
@@ -32,16 +40,17 @@
             href="https://github.com/bertdida/think2"
             target="_blank"
             rel="noopener noreferrer"
-            >GitHub</a>
+            >GitHub</a
+          >
         </nav>
       </div>
     </header>
 
     <main class="container" id="main">
       <p class="demo-callout" role="note">
-        You are on the <strong>demo</strong> page: one sample situation and canned
-        planner–challenger–resolver text. Nothing is sent to OpenRouter or anywhere
-        else from this page.
+        You are on the <strong>demo</strong> page: one sample situation and
+        canned planner–challenger–resolver text. Nothing is sent to OpenRouter
+        or anywhere else from this page.
       </p>
 
       <section
@@ -50,7 +59,7 @@
         aria-labelledby="setup-heading"
       >
         <h2 id="setup-heading">Session setup</h2>
-        <form id="debateForm" onsubmit="return false">
+        <form id="debateForm" onsubmit="return false;">
           <div class="field">
             <label for="apiKey">OpenRouter API key</label>
             <div class="api-key-wrap">
@@ -72,7 +81,8 @@
               ></button>
             </div>
             <p class="key-warning">
-              Used only in this tab for OpenRouter. Not saved — gone after reload.
+              Used only in this tab for OpenRouter. Not saved — gone after
+              reload.
             </p>
           </div>
 
@@ -147,12 +157,11 @@
     <footer class="site-footer">
       <p>
         <a href="https://think2.xyz/">think2.xyz</a> — plan it, challenge it,
-        resolve it. Stress-tested advice: a clear verdict and next steps.
-        For your own key, open the <a href="index.html">live app</a>.
+        resolve it. Stress-tested advice: a clear verdict and next steps. For
+        your own key, open the <a href="index.html">live app</a>.
       </p>
     </footer>
 
-    <script src="js/shared.js"></script>
-    <script src="js/demo.js"></script>
+    <script type="module" src="/src/entries/demo.ts"></script>
   </body>
 </html>
